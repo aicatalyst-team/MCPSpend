@@ -39,7 +39,11 @@ jobs:
   deploy-worker:
     name: Deploy Worker
     runs-on: ubuntu-latest
-    needs: ci
+    # Wait for API to land first — the webhook lives on api.mcpspend.com, so
+    # if all three deploys ran in parallel the worker/dashboard jobs would
+    # POST while the API container is restarting (curl exit code 28). Adding
+    # `needs: deploy-api` serialises them and avoids the flaky deploy chain.
+    needs: [ci, deploy-api]
     steps:
       - name: Trigger Coolify deploy — Worker
         run: |
@@ -55,7 +59,7 @@ jobs:
   deploy-dashboard:
     name: Deploy Dashboard
     runs-on: ubuntu-latest
-    needs: ci
+    needs: [ci, deploy-api]
     steps:
       - name: Trigger Coolify deploy — Dashboard
         run: |
