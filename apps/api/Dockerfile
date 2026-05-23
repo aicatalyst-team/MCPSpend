@@ -10,7 +10,7 @@ RUN pnpm install --frozen-lockfile --filter @mcpspend/api
 FROM deps AS builder
 WORKDIR /app
 COPY apps/api ./apps/api
-RUN pnpm --filter @mcpspend/api run db:generate
+RUN cd apps/api && npx prisma generate
 RUN pnpm --filter @mcpspend/api run build
 
 FROM node:20-alpine AS runner
