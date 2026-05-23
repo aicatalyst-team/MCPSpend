@@ -22,10 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Upgrade npm to >=11.5
-        run: |
-          npm install -g npm@latest
-          npm --version
+          registry-url: 'https://registry.npmjs.org'
       - name: Install
         run: pnpm install --frozen-lockfile
 
@@ -58,7 +55,9 @@ jobs:
           chmod +x dist/index.js
           head -1 dist/index.js
 
-      - name: Publish to npm (OIDC Trusted Publisher)
+      - name: Publish to npm (NPM_TOKEN)
         if: steps.check.outputs.skip != 'true'
         working-directory: packages/mcp-server
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public
