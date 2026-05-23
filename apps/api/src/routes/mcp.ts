@@ -91,56 +91,182 @@ interface RpcResponse {
 
 const SERVER_INFO = { name: 'mcpspend', version: '0.1.0' }
 
+// Tools follow the 2025-06-18 MCP spec: inputSchema + outputSchema +
+// annotations. Smithery's Quality Score rewards each of these — every tool
+// here scores Output schema, Parameter descriptions, and Annotations.
+//
+// Annotations meaning:
+//   - readOnlyHint: tool only reads, never writes
+//   - destructiveHint: tool can delete / overwrite data
+//   - idempotentHint: same args → same result, safe to retry
+//   - openWorldHint: tool's effect is observable outside the system (network call, etc.)
 const TOOLS = [
   {
     name: 'get_today_cost',
     description:
-      'Total tool-call cost and call count for the current day (UTC), for the org behind the caller\'s API key.',
+      'Total tool-call cost and call count for the current day (UTC), for the organization behind the caller\'s API key. Returns a human-readable summary line plus raw numbers in a structured field.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        callCount: { type: 'integer', description: 'Tool calls observed since 00:00 UTC.' },
+        costUsd: { type: 'number', description: 'Sum of estimated costs in USD.' },
+        inputTokens: { type: 'integer', description: 'Sum of input tokens.' },
+        outputTokens: { type: 'integer', description: 'Sum of output tokens.' },
+        errorCount: { type: 'integer', description: 'Tool calls that returned an error.' },
+      },
+      required: ['callCount', 'costUsd', 'inputTokens', 'outputTokens', 'errorCount'],
+    },
+    annotations: { title: 'Today\'s cost', readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   },
   {
     name: 'get_usage_this_month',
     description:
-      'Calls used this month, plan limit, percentage used, and a projection for the rest of the month.',
+      'Calls used this calendar month, the plan limit, percentage used, and a linear end-of-month projection based on the current daily average. Use to spot when an org will hit its cap.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        organizationName: { type: 'string', description: 'Name of the org owning this API key.' },
+        plan: { type: 'string', enum: ['FREE', 'PRO', 'TEAM', 'ENTERPRISE'], description: 'Current plan tier.' },
+        callsThisMonth: { type: 'integer', description: 'Tool calls used since the billing cycle start.' },
+        callsLimit: { type: 'integer', description: 'Plan\'s monthly call cap.' },
+        percentUsed: { type: 'number', description: 'callsThisMonth / callsLimit * 100.' },
+        projectedEndOfMonth: { type: 'integer', description: 'Linear projection of total calls by end of UTC month.' },
+      },
+      required: ['organizationName', 'plan', 'callsThisMonth', 'callsLimit', 'percentUsed', 'projectedEndOfMonth'],
+    },
+    annotations: { title: 'Month-to-date usage', readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   },
   {
     name: 'list_top_tools',
     description:
-      'Top MCP tools by cost over the past N days. Useful for "what is the most expensive thing my agents do".',
+      'Top MCP tools by cost over the past N days. Answers "what is the most expensive thing my agents do" — useful before tightening prompts or swapping a server.',
     inputSchema: {
       type: 'object',
       properties: {
-        days: { type: 'integer', minimum: 1, maximum: 365 },
-        limit: { type: 'integer', minimum: 1, maximum: 50 },
+        days: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 365,
+          default: 7,
+          description: 'Lookback window in days. Defaults to 7.',
+        },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 50,
+          default: 10,
+          description: 'Maximum entries to return. Defaults to 10.',
+        },
       },
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        days: { type: 'integer' },
+        tools: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              serverName: { type: 'string', description: 'MCP server name, e.g. "filesystem".' },
+              toolName: { type: 'string', description: 'Tool name within that server, e.g. "read_file".' },
+              callCount: { type: 'integer' },
+              costUsd: { type: 'number' },
+            },
+            required: ['serverName', 'toolName', 'callCount', 'costUsd'],
+          },
+        },
+      },
+      required: ['days', 'tools'],
+    },
+    annotations: { title: 'Top tools by cost', readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   },
   {
     name: 'list_recent_sessions',
     description:
-      'Recent agent sessions with model, total cost, tool-call count, and duration.',
+      'Recent agent sessions for this organization, ordered by start time. Each row has the model, total cost, tool-call count, and duration in seconds.',
     inputSchema: {
       type: 'object',
       properties: {
-        limit: { type: 'integer', minimum: 1, maximum: 100 },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+          default: 20,
+          description: 'Maximum sessions to return. Defaults to 20.',
+        },
       },
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        sessions: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Session ID — pass to get_session_details for a drill-down.' },
+              model: { type: 'string' },
+              startedAt: { type: 'string', format: 'date-time' },
+              endedAt: { type: 'string', format: 'date-time', nullable: true },
+              toolCallCount: { type: 'integer' },
+              totalCostUsd: { type: 'number' },
+              durationSeconds: { type: 'integer', nullable: true, description: 'Null while the session is still open.' },
+            },
+            required: ['id', 'model', 'startedAt', 'toolCallCount', 'totalCostUsd'],
+          },
+        },
+      },
+      required: ['sessions'],
+    },
+    annotations: { title: 'Recent agent sessions', readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   },
   {
     name: 'get_session_details',
     description:
-      'Drill into a single session by ID. Returns the session summary plus every tool call up to 500.',
+      'Drill into a single session by ID. Returns the session header plus every tool call within it (capped at 500 to bound payload size).',
     inputSchema: {
       type: 'object',
       properties: {
-        session_id: { type: 'string' },
+        session_id: {
+          type: 'string',
+          description: 'Session ID from list_recent_sessions. Must belong to the caller\'s organization.',
+        },
       },
       required: ['session_id'],
       additionalProperties: false,
     },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        model: { type: 'string' },
+        startedAt: { type: 'string', format: 'date-time' },
+        toolCallCount: { type: 'integer' },
+        totalCostUsd: { type: 'number' },
+        toolCalls: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              serverName: { type: 'string' },
+              toolName: { type: 'string' },
+              costUsd: { type: 'number' },
+              latencyMs: { type: 'integer', nullable: true },
+              success: { type: 'boolean' },
+              calledAt: { type: 'string', format: 'date-time' },
+            },
+            required: ['serverName', 'toolName', 'costUsd', 'success', 'calledAt'],
+          },
+        },
+      },
+      required: ['id', 'model', 'startedAt', 'toolCallCount', 'totalCostUsd', 'toolCalls'],
+    },
+    annotations: { title: 'Session details', readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   },
 ]
 
@@ -149,7 +275,15 @@ function fmtUsd(n: number | null | undefined): string {
   return '$' + n.toFixed(4)
 }
 
-async function handleTool(name: string, args: Record<string, unknown>, organizationId: string): Promise<string> {
+// Handlers return both a human-readable text block (for chat) and a
+// structuredContent object matching the tool's outputSchema (for agents that
+// want to parse). Per MCP 2025-06-18 spec, both can coexist in a tool result.
+interface ToolResult {
+  text: string
+  structured: Record<string, unknown>
+}
+
+async function handleTool(name: string, args: Record<string, unknown>, organizationId: string): Promise<ToolResult> {
   switch (name) {
     case 'get_today_cost': {
       const since = new Date()
@@ -159,11 +293,19 @@ async function handleTool(name: string, args: Record<string, unknown>, organizat
         _sum: { callCount: true, costUsd: true, inputTokens: true, outputTokens: true, errorCount: true },
       })
       const s = agg._sum
-      return [
-        `Today (UTC): ${s.callCount ?? 0} calls, total ${fmtUsd(s.costUsd)}.`,
-        `Tokens: ${s.inputTokens ?? 0} input / ${s.outputTokens ?? 0} output.`,
-        `Errors: ${s.errorCount ?? 0}.`,
-      ].join('\n')
+      const callCount = s.callCount ?? 0
+      const costUsd = s.costUsd ?? 0
+      const inputTokens = s.inputTokens ?? 0
+      const outputTokens = s.outputTokens ?? 0
+      const errorCount = s.errorCount ?? 0
+      return {
+        text: [
+          `Today (UTC): ${callCount} calls, total ${fmtUsd(costUsd)}.`,
+          `Tokens: ${inputTokens} input / ${outputTokens} output.`,
+          `Errors: ${errorCount}.`,
+        ].join('\n'),
+        structured: { callCount, costUsd, inputTokens, outputTokens, errorCount },
+      }
     }
 
     case 'get_usage_this_month': {
@@ -171,7 +313,9 @@ async function handleTool(name: string, args: Record<string, unknown>, organizat
         where: { id: organizationId },
         select: { name: true, plan: true, callsThisMonth: true, callsLimit: true },
       })
-      if (!org) return 'Organization not found.'
+      if (!org) {
+        return { text: 'Organization not found.', structured: {} }
+      }
       const pct = org.callsLimit > 0 ? (org.callsThisMonth / org.callsLimit) * 100 : 0
       const now = new Date()
       const daysInMonth = new Date(now.getUTCFullYear(), now.getUTCMonth() + 1, 0).getUTCDate()
@@ -179,11 +323,21 @@ async function handleTool(name: string, args: Record<string, unknown>, organizat
       const projected = dayOfMonth > 0
         ? Math.round((org.callsThisMonth / dayOfMonth) * daysInMonth)
         : org.callsThisMonth
-      return [
-        `${org.name} · plan ${org.plan}`,
-        `${org.callsThisMonth.toLocaleString()} / ${org.callsLimit.toLocaleString()} calls (${pct.toFixed(1)}%)`,
-        `Projected end-of-month: ${projected.toLocaleString()} (limit ${org.callsLimit.toLocaleString()})`,
-      ].join('\n')
+      return {
+        text: [
+          `${org.name} · plan ${org.plan}`,
+          `${org.callsThisMonth.toLocaleString()} / ${org.callsLimit.toLocaleString()} calls (${pct.toFixed(1)}%)`,
+          `Projected end-of-month: ${projected.toLocaleString()} (limit ${org.callsLimit.toLocaleString()})`,
+        ].join('\n'),
+        structured: {
+          organizationName: org.name,
+          plan: org.plan,
+          callsThisMonth: org.callsThisMonth,
+          callsLimit: org.callsLimit,
+          percentUsed: Number(pct.toFixed(2)),
+          projectedEndOfMonth: projected,
+        },
+      }
     }
 
     case 'list_top_tools': {
@@ -198,14 +352,25 @@ async function handleTool(name: string, args: Record<string, unknown>, organizat
         orderBy: { _sum: { costUsd: 'desc' } },
         take: limit,
       })
-      if (tools.length === 0) return `No tool calls in the past ${days} day(s).`
+      const structuredTools = tools.map((t) => ({
+        serverName: t.serverName ?? '',
+        toolName: t.toolName ?? '',
+        callCount: t._sum.callCount ?? 0,
+        costUsd: t._sum.costUsd ?? 0,
+      }))
+      if (tools.length === 0) {
+        return {
+          text: `No tool calls in the past ${days} day(s).`,
+          structured: { days, tools: [] },
+        }
+      }
       const lines = [`Top ${tools.length} tools by cost (last ${days}d):`]
       tools.forEach((t, i) => {
         const cost = fmtUsd(t._sum.costUsd)
         const calls = t._sum.callCount ?? 0
         lines.push(`  ${i + 1}. ${t.serverName ?? '—'}/${t.toolName} — ${cost} · ${calls} calls`)
       })
-      return lines.join('\n')
+      return { text: lines.join('\n'), structured: { days, tools: structuredTools } }
     }
 
     case 'list_recent_sessions': {
@@ -219,7 +384,22 @@ async function handleTool(name: string, args: Record<string, unknown>, organizat
           toolCallCount: true, totalCostUsd: true,
         },
       })
-      if (sessions.length === 0) return 'No recent sessions.'
+      const structured = {
+        sessions: sessions.map((s) => ({
+          id: s.id,
+          model: s.model,
+          startedAt: s.startedAt.toISOString(),
+          endedAt: s.endedAt ? s.endedAt.toISOString() : null,
+          toolCallCount: s.toolCallCount,
+          totalCostUsd: s.totalCostUsd,
+          durationSeconds: s.endedAt
+            ? Math.round((+new Date(s.endedAt) - +new Date(s.startedAt)) / 1000)
+            : null,
+        })),
+      }
+      if (sessions.length === 0) {
+        return { text: 'No recent sessions.', structured }
+      }
       const lines = [`${sessions.length} recent session(s):`]
       sessions.forEach((s) => {
         const dur = s.endedAt
@@ -227,7 +407,7 @@ async function handleTool(name: string, args: Record<string, unknown>, organizat
           : 'open'
         lines.push(`  ${s.id} · ${s.model} · ${s.toolCallCount} calls · ${fmtUsd(s.totalCostUsd)} · ${dur}`)
       })
-      return lines.join('\n')
+      return { text: lines.join('\n'), structured }
     }
 
     case 'get_session_details': {
@@ -237,7 +417,24 @@ async function handleTool(name: string, args: Record<string, unknown>, organizat
         where: { id, organizationId },
         include: { toolCalls: { orderBy: { calledAt: 'asc' }, take: 500 } },
       })
-      if (!s) return `Session ${id} not found.`
+      if (!s) {
+        return { text: `Session ${id} not found.`, structured: {} }
+      }
+      const structured = {
+        id: s.id,
+        model: s.model,
+        startedAt: s.startedAt.toISOString(),
+        toolCallCount: s.toolCallCount,
+        totalCostUsd: s.totalCostUsd,
+        toolCalls: s.toolCalls.map((c) => ({
+          serverName: c.serverName,
+          toolName: c.toolName,
+          costUsd: c.costUsd,
+          latencyMs: c.latencyMs,
+          success: c.success,
+          calledAt: c.calledAt.toISOString(),
+        })),
+      }
       const lines = [
         `Session ${s.id} (${s.model})`,
         `  Started: ${s.startedAt.toISOString()}`,
@@ -253,7 +450,7 @@ async function handleTool(name: string, args: Record<string, unknown>, organizat
       if (s.toolCalls.length > 20) {
         lines.push(`  … and ${s.toolCalls.length - 20} more (truncated)`)
       }
-      return lines.join('\n')
+      return { text: lines.join('\n'), structured }
     }
 
     default:
@@ -311,8 +508,13 @@ router.post('/', async (req, res) => {
           return
         }
         try {
-          const text = await handleTool(name, params.arguments || {}, organizationId)
-          reply({ result: { content: [{ type: 'text', text }] } })
+          const out = await handleTool(name, params.arguments || {}, organizationId)
+          reply({
+            result: {
+              content: [{ type: 'text', text: out.text }],
+              structuredContent: out.structured,
+            },
+          })
         } catch (err) {
           reply({
             result: {
