@@ -35,6 +35,9 @@ model Organization {
   callsThisMonth       Int      @default(0)
   callsLimit           Int      @default(25000)
   billingCycleStart    DateTime @default(now())
+  slackWebhookUrl      String?
+  lastBudgetAlertAt    DateTime?
+  lastBudgetAlertLevel Int?     // last threshold hit (e.g. 80, 100)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 

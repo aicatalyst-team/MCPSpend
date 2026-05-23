@@ -15,10 +15,37 @@ router.get('/', requireOrg, async (req: AuthRequest, res) => {
   res.json(projects)
 })
 
+// Pricing.tsx promises: FREE = 1 project; PRO/TEAM/ENT = unlimited.
+const PROJECT_LIMITS: Record<string, number | null> = {
+  FREE: 1,
+  PRO: null,
+  TEAM: null,
+  ENTERPRISE: null,
+}
+
 router.post('/', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: AuthRequest, res) => {
   const schema = z.object({ name: z.string().min(1).max(80) })
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return }
+
+  const org = await prisma.organization.findUnique({
+    where: { id: req.organizationId! },
+    select: { plan: true },
+  })
+  if (!org) { res.status(404).json({ error: 'Organization not found' }); return }
+
+  const limit = PROJECT_LIMITS[org.plan]
+  if (limit !== null) {
+    const count = await prisma.project.count({ where: { organizationId: req.organizationId! } })
+    if (count >= limit) {
+      res.status(402).json({
+        error: `${org.plan} plan is limited to ${limit} project${limit === 1 ? '' : 's'}. Upgrade to add more.`,
+        currentPlan: org.plan,
+        upgradeUrl: `${process.env.DASHBOARD_URL?.split(',')[0]?.trim() || 'https://mcpspend.com'}/dashboard/billing`,
+      })
+      return
+    }
+  }
 
   const base = slugify(parsed.data.name)
   let slug = base

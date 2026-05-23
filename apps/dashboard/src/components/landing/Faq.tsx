@@ -21,7 +21,7 @@ const faqs = [
   },
   {
     q: 'What runtime do I need?',
-    a: 'Node.js 18+. The proxy is published as @mcpspend/proxy on npm. One global install, drop it in front of any stdio MCP server.',
+    a: 'Node.js 18+. No install required — the proxy is published as @mcpspend/proxy on npm and runs via npx. One command (`npx @mcpspend/proxy init --key …`) detects every supported MCP client on your machine and wraps the servers for you.',
   },
 ]
 

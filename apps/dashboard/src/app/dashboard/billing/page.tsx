@@ -13,6 +13,21 @@ interface Status {
   hasSubscription: boolean
 }
 
+interface OrgInfo {
+  id: string
+  name: string
+  plan: string
+  slackWebhookUrl: string | null
+}
+
+// Pricing.tsx promises these retention windows.
+const RETENTION_DAYS: Record<string, string> = {
+  FREE: '7 days',
+  PRO: '30 days',
+  TEAM: '90 days',
+  ENTERPRISE: 'unlimited',
+}
+
 interface Plan {
   id: 'PRO' | 'TEAM' | 'ENTERPRISE'
   name: string
@@ -51,17 +66,24 @@ function BillingContent() {
   const searchParams = useSearchParams()
   const status = searchParams.get('status')
   const [data, setData] = useState<Status | null>(null)
+  const [org, setOrg] = useState<OrgInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [cadence, setCadence] = useState<'monthly' | 'yearly'>('monthly')
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [slackInput, setSlackInput] = useState('')
 
   async function refresh() {
     try {
-      const s = await api<Status>('/api/billing/status')
+      const [s, o] = await Promise.all([
+        api<Status>('/api/billing/status'),
+        api<OrgInfo>('/api/organizations/current'),
+      ])
       setData(s)
+      setOrg(o)
+      setSlackInput(o.slackWebhookUrl || '')
       if (s.cadence) setCadence(s.cadence)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load billing status')
@@ -71,6 +93,23 @@ function BillingContent() {
   }
 
   useEffect(() => { void refresh() }, [])
+
+  async function saveSlack() {
+    setBusy('slack'); setError(''); setInfo('')
+    try {
+      const v = slackInput.trim()
+      await api('/api/organizations/current', {
+        method: 'PATCH',
+        body: JSON.stringify({ slackWebhookUrl: v ? v : null }),
+      })
+      setInfo(v ? 'Slack webhook saved — you’ll get budget alerts here.' : 'Slack webhook cleared.')
+      await refresh()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to save Slack webhook')
+    } finally {
+      setBusy(null)
+    }
+  }
 
   async function handleCheckout(plan: 'PRO' | 'TEAM' | 'ENTERPRISE') {
     setBusy(plan); setError(''); setInfo('')
@@ -325,6 +364,48 @@ function BillingContent() {
           )
         })}
       </div>
+
+      {/* Retention card — every plan has a retention guarantee from Pricing.tsx */}
+      {data && (
+        <div className="bg-gray-900 border border-white/5 rounded-xl p-5">
+          <h3 className="text-white font-semibold">Data retention</h3>
+          <p className="text-sm text-gray-400 mt-1">
+            Tool-call rows on the <strong className="text-white">{currentPlan}</strong> plan are kept for{' '}
+            <strong className="text-white">{RETENTION_DAYS[currentPlan] || '7 days'}</strong>. Older rows are
+            automatically deleted by the maintenance job. Aggregated daily stats are kept indefinitely.
+          </p>
+        </div>
+      )}
+
+      {/* Slack budget alerts — Pricing.tsx promises this on Pro+ */}
+      {isPaid && (
+        <div className="bg-gray-900 border border-white/5 rounded-xl p-5">
+          <h3 className="text-white font-semibold">Budget alerts</h3>
+          <p className="text-sm text-gray-400 mt-1">
+            Email is sent automatically to all OWNER/ADMIN members when you cross 80% or 100% of your monthly
+            quota (throttled to once per 24 hours). Optionally also ping a Slack channel.
+          </p>
+          <div className="mt-3 flex flex-col sm:flex-row gap-2">
+            <input
+              type="url"
+              placeholder="https://hooks.slack.com/services/T.../B.../..."
+              value={slackInput}
+              onChange={(e) => setSlackInput(e.target.value)}
+              className="flex-1 bg-gray-950 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
+            />
+            <button
+              onClick={saveSlack}
+              disabled={busy === 'slack' || slackInput.trim() === (org?.slackWebhookUrl || '')}
+              className="bg-white text-gray-950 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+            >
+              {busy === 'slack' ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+          {org?.slackWebhookUrl && (
+            <p className="text-xs text-emerald-400 mt-2">✓ Slack webhook active</p>
+          )}
+        </div>
+      )}
 
       <p className="text-xs text-gray-500">
         Need a custom plan or invoice for your finance team? Email{' '}

@@ -37,6 +37,27 @@ function authHeaders(extra: Record<string, string> = {}): HeadersInit {
   return headers
 }
 
+// Trigger a file download. Used for CSV export. Honors auth + active org headers
+// without going through the JSON-decoding wrapper above.
+export async function apiDownload(path: string, suggestedName: string): Promise<void> {
+  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    let payload: unknown
+    try { payload = JSON.parse(text) } catch { payload = text }
+    throw new ApiError(res.status, payload)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = suggestedName
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export class ApiError extends Error {
   constructor(public status: number, public payload: unknown) {
     super(typeof payload === 'object' && payload && 'error' in payload ? String((payload as { error: unknown }).error) : `HTTP ${status}`)

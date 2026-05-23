@@ -58,22 +58,28 @@ router.get('/current', requireOrg, async (req: AuthRequest, res) => {
       id: true, name: true, slug: true, plan: true,
       callsThisMonth: true, callsLimit: true,
       billingCycleStart: true, createdAt: true,
+      slackWebhookUrl: true,
     },
   })
   if (!org) { res.status(404).json({ error: 'Organization not found' }); return }
   res.json(org)
 })
 
-// Update organization (OWNER/ADMIN only)
+// Update organization (OWNER/ADMIN only). Accepts name + Slack webhook URL
+// for budget alerts. Slack URL is only meaningful on Pro+ (alerts are gated
+// at the maintenance scheduler).
 router.patch('/current', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: AuthRequest, res) => {
-  const schema = z.object({ name: z.string().min(1).max(80).optional() })
+  const schema = z.object({
+    name: z.string().min(1).max(80).optional(),
+    slackWebhookUrl: z.string().url().startsWith('https://hooks.slack.com/').nullable().optional(),
+  })
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return }
 
   const org = await prisma.organization.update({
     where: { id: req.organizationId! },
     data: parsed.data,
-    select: { id: true, name: true, slug: true, plan: true },
+    select: { id: true, name: true, slug: true, plan: true, slackWebhookUrl: true },
   })
   res.json(org)
 })

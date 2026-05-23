@@ -2,6 +2,7 @@ import { Worker, Job } from 'bullmq'
 import { queueConnection, ToolCallPayload } from './lib/queue'
 import { prisma } from './lib/prisma'
 import { cacheDelPattern } from './lib/redis'
+import { startMaintenanceScheduler } from './lib/maintenance'
 
 const BATCH_SIZE = 100
 const BATCH_INTERVAL_MS = 500
@@ -198,9 +199,14 @@ worker.on('ready', () => {
   console.log('[Worker] MCPSpend ingest worker ready')
 })
 
+// Background maintenance: retention enforcement + budget alerts (email + Slack).
+// Co-located with the worker so we only have one schedule-aware process.
+const stopMaintenance = startMaintenanceScheduler()
+
 async function shutdown() {
   console.log('[Worker] Shutting down — flushing remaining batch...')
   if (flushTimer) clearTimeout(flushTimer)
+  stopMaintenance()
   await flushBatch()
   await worker.close()
   await prisma.$disconnect()

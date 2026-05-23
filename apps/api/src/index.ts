@@ -10,6 +10,7 @@ import { organizationsRouter } from './routes/organizations'
 import { invitationsRouter } from './routes/invitations'
 import { apiKeysRouter } from './routes/apiKeys'
 import { billingRouter, billingPublicRouter } from './routes/billing'
+import { exportRouter } from './routes/export'
 import { webhookRouter } from './routes/webhooks'
 import { authMiddleware } from './middleware/auth'
 
@@ -71,6 +72,7 @@ app.use('/api/invitations', authMiddleware, invitationsRouter)
 app.use('/api/keys', authMiddleware, apiKeysRouter)
 app.use('/api/billing', billingPublicRouter)            // /start is public
 app.use('/api/billing', authMiddleware, billingRouter)  // /checkout, /portal require auth
+app.use('/api/export', authMiddleware, exportRouter)    // CSV (Pro+)
 
 app.listen(PORT, () => {
   console.log(`MCPSpend API v0.2.0 running on port ${PORT}`)

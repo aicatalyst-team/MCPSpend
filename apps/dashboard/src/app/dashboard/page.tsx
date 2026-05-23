@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { api, ApiError, auth } from '@/lib/api'
+import { api, ApiError, apiDownload, auth } from '@/lib/api'
 import { useRouter } from 'next/navigation'
 import { Onboarding } from '@/components/dashboard/Onboarding'
 
@@ -16,6 +16,8 @@ export default function DashboardPage() {
   const router = useRouter()
   const [overview, setOverview] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   useEffect(() => {
     api<Overview>('/api/stats/overview?days=30')
@@ -25,6 +27,22 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false))
   }, [router])
+
+  async function downloadCsv() {
+    setDownloading(true); setDownloadError(null)
+    try {
+      const stamp = new Date().toISOString().slice(0, 10)
+      await apiDownload(`/api/export/tool-calls.csv?days=30`, `mcpspend-${stamp}.csv`)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 402) {
+        setDownloadError('CSV export requires the Pro plan or higher.')
+      } else {
+        setDownloadError(err instanceof ApiError ? err.message : 'Download failed')
+      }
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   if (loading) return (
     <div className="flex items-center justify-center py-20">
@@ -44,6 +62,23 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Overview</h1>
+          <p className="text-sm text-gray-400 mt-1">Last 30 days</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {downloadError && <span className="text-xs text-red-400">{downloadError}</span>}
+          <button
+            onClick={downloadCsv}
+            disabled={downloading}
+            className="bg-white/5 border border-white/10 text-white text-sm font-semibold px-3 py-2 rounded-lg hover:bg-white/10 disabled:opacity-50 transition-colors inline-flex items-center gap-2"
+          >
+            {downloading ? 'Generating…' : '↓ Download CSV'}
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Total cost (30d)', value: `$${(totals?.costUsd ?? 0).toFixed(4)}` },
