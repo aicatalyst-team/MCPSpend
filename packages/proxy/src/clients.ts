@@ -21,6 +21,13 @@ export interface ClientDefinition {
   name: string
   // Absolute paths that may hold this client's MCP config. First existing one wins.
   configPaths: () => string[]
+  // Optional directory checks. If a config file doesn't exist yet but ANY of
+  // these directories does, we know the client is installed. We then materialise
+  // the first configPath with an empty config so init can write into it.
+  // Some clients (Windsurf is the canonical example) only create the MCP
+  // config file the first time the user adds a server via the UI — without
+  // this fallback, init reports "not installed" and the user is stuck.
+  installMarkers?: () => string[]
   // The JSON shape stores MCP servers under this key. Default: "mcpServers".
   serversKey?: string
 }
@@ -53,6 +60,21 @@ export const CLIENTS: ClientDefinition[] = [
       join(home, '.codeium', 'windsurf', 'mcp_config.json'),
       join(home, '.codeium', 'windsurf-next', 'mcp_config.json'),
     ],
+    // Windsurf only creates mcp_config.json after the user adds a server via
+    // the UI. The .codeium/windsurf dir exists from the moment Windsurf runs
+    // once, and the AppData install dir exists from the install itself.
+    installMarkers: () => {
+      const markers = [
+        join(home, '.codeium', 'windsurf'),
+        join(home, '.codeium', 'windsurf-next'),
+      ]
+      if (isWin) {
+        markers.push(join(process.env.LOCALAPPDATA || join(home, 'AppData', 'Local'), 'Windsurf'))
+      } else if (isMac) {
+        markers.push('/Applications/Windsurf.app')
+      }
+      return markers
+    },
   },
   {
     id: 'vscode',
@@ -80,15 +102,37 @@ export const CLIENTS: ClientDefinition[] = [
 export interface DiscoveredClient {
   client: ClientDefinition
   path: string
+  // True when we matched via installMarkers (directory exists) but the actual
+  // config file is missing. wrapAllServers will write an empty config + the
+  // wrapped entries; init's report includes a hint so the user knows.
+  bootstrapped?: boolean
 }
 
 export function discoverClients(): DiscoveredClient[] {
   const found: DiscoveredClient[] = []
   for (const c of CLIENTS) {
+    let matched = false
+
+    // First try existing config files (the common case).
     for (const p of c.configPaths()) {
       if (existsSync(p)) {
         found.push({ client: c, path: p })
+        matched = true
         break
+      }
+    }
+    if (matched) continue
+
+    // Fall back to install markers. If the client is installed but has never
+    // had a config written, take the first configPath as the destination and
+    // mark the discovery as bootstrapped.
+    if (c.installMarkers) {
+      const installed = c.installMarkers().some(p => existsSync(p))
+      if (installed) {
+        const paths = c.configPaths()
+        if (paths.length > 0) {
+          found.push({ client: c, path: paths[0], bootstrapped: true })
+        }
       }
     }
   }

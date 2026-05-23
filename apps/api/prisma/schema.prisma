@@ -48,6 +48,28 @@ model Organization {
   sessions     Session[]
   toolCalls    ToolCall[]
   dailyStats   DailyStats[]
+  auditLogs    AuditLog[]
+}
+
+// Append-only record of sensitive actions: subscription changes, member kicks,
+// API key revocations, settings edits. Shown to Enterprise customers + queried
+// by support. Retention: forever for Enterprise, follows ToolCall retention
+// for everyone else (cleaned by maintenance.ts).
+model AuditLog {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId          String?      // null when the action came from a webhook or system job
+  actorEmail      String?      // copied at write time so a user delete doesn't orphan the log
+  action          String       // dotted namespace: billing.cancel, billing.upgrade, key.revoke, ...
+  target          String?      // ID of the thing acted on (subscription id, key id, ...)
+  metadata        Json?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([action, createdAt])
 }
 
 enum Role {

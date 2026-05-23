@@ -12,6 +12,7 @@ import { apiKeysRouter } from './routes/apiKeys'
 import { billingRouter, billingPublicRouter } from './routes/billing'
 import { exportRouter } from './routes/export'
 import { adminRouter } from './routes/admin'
+import { internalRouter } from './routes/internal'
 import { webhookRouter } from './routes/webhooks'
 import { authMiddleware } from './middleware/auth'
 
@@ -75,6 +76,7 @@ app.use('/api/billing', billingPublicRouter)            // /start is public
 app.use('/api/billing', authMiddleware, billingRouter)  // /checkout, /portal require auth
 app.use('/api/export', authMiddleware, exportRouter)    // CSV (Pro+)
 app.use('/api/admin', authMiddleware, adminRouter)      // platform-owner view (SUPER_ADMIN_EMAILS)
+app.use('/api/internal', internalRouter)                // CI/CD: redeploy via DEPLOY_SECRET header (no JWT)
 
 app.listen(PORT, () => {
   console.log(`MCPSpend API v0.2.0 running on port ${PORT}`)

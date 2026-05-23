@@ -12,6 +12,7 @@
 import { prisma } from './prisma'
 import { sendEmail } from './email'
 import { budgetAlertEmail } from '../emails/templates'
+import { decrypt } from './crypto'
 
 const RETENTION_DAYS: Record<string, number | null> = {
   FREE: 7,
@@ -129,9 +130,10 @@ export async function runBudgetAlerts(): Promise<{ orgId: string; level: AlertLe
       if (!result.error) channels.push('email')
     }
 
-    // Slack — if configured
-    if (org.slackWebhookUrl) {
-      const ok = await sendSlack(org.slackWebhookUrl, {
+    // Slack — if configured (decrypt the at-rest ciphertext before POST)
+    const slackUrl = decrypt(org.slackWebhookUrl)
+    if (slackUrl) {
+      const ok = await sendSlack(slackUrl, {
         text:
           `*MCPSpend* — ${org.name} has used *${Math.round(percent)}%* of this month's quota ` +
           `(${org.callsThisMonth.toLocaleString()} / ${org.callsLimit.toLocaleString()} calls). ` +

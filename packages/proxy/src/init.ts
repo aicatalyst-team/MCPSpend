@@ -29,6 +29,9 @@ export interface ClientReport {
   backupPath?: string
   servers: WrapResult[]
   error?: string
+  // True if we created the config file ourselves because the client was
+  // installed but had no MCP config yet (mostly Windsurf).
+  bootstrapped?: boolean
 }
 
 export interface InitReport {
@@ -64,10 +67,26 @@ export function runInit(opts: InitOptions = {}): InitReport {
 
   const clientReports: ClientReport[] = []
 
-  for (const { client, path } of discovered) {
+  for (const { client, path, bootstrapped } of discovered) {
     const serversKey = client.serversKey || 'mcpServers'
     try {
       const current = readClientConfig(path)
+
+      // Bootstrap-mode: client is installed but has no MCP config yet. We still
+      // want to create the file with an empty mcpServers object so the user
+      // can add their first server via the UI and have it auto-wrapped on the
+      // next `init` run. Unwrap is a no-op here.
+      if (bootstrapped && opts.unwrap) {
+        clientReports.push({
+          client: client.id,
+          name: client.name,
+          path,
+          status: 'no-changes',
+          servers: [],
+        })
+        continue
+      }
+
       const { config: next, results } = opts.unwrap
         ? unwrapAllServers(current, serversKey)
         : wrapAllServers(current, serversKey, {
@@ -76,7 +95,11 @@ export function runInit(opts: InitOptions = {}): InitReport {
             agentName: opts.agentName,
           })
 
-      const changed = JSON.stringify(current) !== JSON.stringify(next)
+      const changed = bootstrapped || JSON.stringify(current) !== JSON.stringify(next)
+      if (bootstrapped && !(next[serversKey] && Object.keys(next[serversKey] as object).length > 0)) {
+        // Ensure the key exists in the new file even when empty.
+        ;(next as Record<string, unknown>)[serversKey] = {}
+      }
 
       if (opts.dryRun) {
         clientReports.push({
@@ -108,6 +131,7 @@ export function runInit(opts: InitOptions = {}): InitReport {
         status: 'patched',
         backupPath: backupPath || undefined,
         servers: results,
+        bootstrapped,
       })
     } catch (err) {
       clientReports.push({
@@ -147,7 +171,7 @@ export function formatReport(report: InitReport, unwrap = false): string {
   lines.push(`Found ${report.clientsFound} MCP client(s):`)
   for (const r of report.clients) {
     const tag =
-      r.status === 'patched' ? '✓ patched'
+      r.status === 'patched' ? (r.bootstrapped ? '✓ bootstrapped (empty config created)' : '✓ patched')
       : r.status === 'no-changes' ? '· no changes'
       : r.status === 'dry-run' ? '∼ dry-run'
       : `✗ error: ${r.error}`
@@ -155,6 +179,9 @@ export function formatReport(report: InitReport, unwrap = false): string {
     lines.push(`    ${r.path}`)
     if (r.backupPath) {
       lines.push(`    backup: ${r.backupPath}`)
+    }
+    if (r.bootstrapped && r.servers.length === 0) {
+      lines.push(`    (add MCP servers in the client UI — they'll be auto-wrapped next time you run init)`)
     }
     for (const s of r.servers) {
       const sym =

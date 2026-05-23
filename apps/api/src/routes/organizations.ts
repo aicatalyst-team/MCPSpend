@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { AuthRequest, requireOrg, requireRole, requireUserSession } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 import { slugify, randomSlugSuffix } from '../lib/slug'
+import { encrypt, decrypt } from '../lib/crypto'
 
 const router = Router()
 
@@ -50,7 +51,8 @@ router.post('/', async (req: AuthRequest, res) => {
   res.status(201).json(org)
 })
 
-// Get current organization details
+// Get current organization details. slackWebhookUrl is transparently decrypted
+// before being returned to the client (we never surface the at-rest ciphertext).
 router.get('/current', requireOrg, async (req: AuthRequest, res) => {
   const org = await prisma.organization.findUnique({
     where: { id: req.organizationId! },
@@ -62,7 +64,7 @@ router.get('/current', requireOrg, async (req: AuthRequest, res) => {
     },
   })
   if (!org) { res.status(404).json({ error: 'Organization not found' }); return }
-  res.json(org)
+  res.json({ ...org, slackWebhookUrl: decrypt(org.slackWebhookUrl) })
 })
 
 // Update organization (OWNER/ADMIN only). Accepts name + Slack webhook URL
@@ -76,12 +78,19 @@ router.patch('/current', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: 
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return }
 
+  // Encrypt secrets at rest before persisting. The crypto helper is a no-op
+  // when APP_ENCRYPTION_KEY is not set (dev mode passthrough).
+  const data: typeof parsed.data = { ...parsed.data }
+  if ('slackWebhookUrl' in data) {
+    data.slackWebhookUrl = encrypt(data.slackWebhookUrl) as string | null
+  }
+
   const org = await prisma.organization.update({
     where: { id: req.organizationId! },
-    data: parsed.data,
+    data,
     select: { id: true, name: true, slug: true, plan: true, slackWebhookUrl: true },
   })
-  res.json(org)
+  res.json({ ...org, slackWebhookUrl: decrypt(org.slackWebhookUrl) })
 })
 
 // List members of current organization
