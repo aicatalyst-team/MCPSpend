@@ -16,7 +16,7 @@ export function Hero() {
       <div className="relative max-w-6xl mx-auto px-6 text-center">
         <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-3 py-1 text-xs font-medium text-gray-300 mb-8">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          Limited beta — first 100 teams free for 6 months
+          Free tier · 25,000 tool calls/month, forever
         </div>
 
         <h1 className="text-5xl md:text-7xl font-semibold tracking-tighter text-white leading-[1.05]">

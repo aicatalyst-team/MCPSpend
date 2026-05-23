@@ -69,7 +69,7 @@ function RegisterForm() {
           {invitationInfo ? `Join ${invitationInfo.orgName}` : 'Create your account'}
         </h1>
         <p className="text-gray-400 text-sm mt-1">
-          {invitationInfo ? `Invited as ${invitationInfo.email}` : 'Free — 50K tool calls/month included'}
+          {invitationInfo ? `Invited as ${invitationInfo.email}` : 'Free — 25K tool calls/month included'}
         </p>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">

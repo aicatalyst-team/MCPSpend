@@ -2,6 +2,7 @@ import {
   CLIENTS,
   ClientDefinition,
   discoverClients,
+  isAlreadyWrapped,
   readClientConfig,
   unwrapAllServers,
   wrapAllServers,
@@ -219,13 +220,10 @@ export async function runDoctor(cliVersion: string): Promise<DoctorReport> {
     try {
       const cfg = readClientConfig(found.path)
       const serversKey = c.serversKey || 'mcpServers'
-      const servers = (cfg[serversKey] as Record<string, { command?: string; args?: string[] }>) || {}
+      const servers = (cfg[serversKey] as Record<string, { command: string; args?: string[] }>) || {}
       serversCount = Object.keys(servers).length
       for (const s of Object.values(servers)) {
-        const cmdBase = (s.command || '').toLowerCase().split(/[\\/]/).pop() || ''
-        if (cmdBase === 'mcpspend' || cmdBase === 'mcpspend.cmd' || cmdBase === 'mcpspend.exe') {
-          if ((s.args || [])[0] === 'wrap') wrappedCount++
-        }
+        if (s && typeof s.command === 'string' && isAlreadyWrapped(s)) wrappedCount++
       }
     } catch {}
     return { client: c.id, name: c.name, path: found.path, detected: true, serversCount, wrappedCount }

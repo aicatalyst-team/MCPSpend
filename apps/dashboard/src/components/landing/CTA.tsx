@@ -10,7 +10,7 @@ export function CTA() {
             Stop guessing what AI costs you.
           </h2>
           <p className="mt-4 text-gray-400 text-lg">
-            Install in five minutes. Free for the first 100 teams for six months.
+            One command to install. Free tier with 25,000 tool calls/month, no credit card.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Link

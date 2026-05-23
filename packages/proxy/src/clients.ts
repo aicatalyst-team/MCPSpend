@@ -137,7 +137,15 @@ const MCPSPEND_BIN_NAMES = new Set(['mcpspend', 'mcpspend.cmd', 'mcpspend.exe'])
 const NPX_BIN_NAMES = new Set(['npx', 'npx.cmd', 'npx.exe'])
 const PROXY_PKG = '@mcpspend/proxy'
 
-function isAlreadyWrapped(entry: McpServerEntry): boolean {
+// True if `pkgArg` is some form of @mcpspend/proxy: bare, @version, or @tag.
+//   '@mcpspend/proxy', '@mcpspend/proxy@0.2.1', '@mcpspend/proxy@latest' → true
+function isProxyPackageArg(pkgArg: string | undefined): boolean {
+  if (!pkgArg) return false
+  if (pkgArg === PROXY_PKG) return true
+  return pkgArg.startsWith(PROXY_PKG + '@')
+}
+
+export function isAlreadyWrapped(entry: McpServerEntry): boolean {
   const cmd = (entry.command || '').toLowerCase()
   const base = cmd.split(/[\\/]/).pop() || cmd
   const args = entry.args || []
@@ -145,10 +153,10 @@ function isAlreadyWrapped(entry: McpServerEntry): boolean {
   // Shape A: `mcpspend wrap ...`
   if (MCPSPEND_BIN_NAMES.has(base) && args[0] === 'wrap') return true
 
-  // Shape B: `npx [-y] @mcpspend/proxy wrap ...`
+  // Shape B: `npx [-y] @mcpspend/proxy[@version] wrap ...`
   if (NPX_BIN_NAMES.has(base)) {
     const skipFlag = args[0] === '-y' || args[0] === '--yes' ? 1 : 0
-    if (args[skipFlag] === PROXY_PKG && args[skipFlag + 1] === 'wrap') return true
+    if (isProxyPackageArg(args[skipFlag]) && args[skipFlag + 1] === 'wrap') return true
   }
 
   return false

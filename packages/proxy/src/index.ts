@@ -13,6 +13,7 @@ export {
   unwrapAllServers,
   wrapEntry,
   unwrapEntry,
+  isAlreadyWrapped,
 } from './clients.js'
 export type {
   ClientDefinition,
