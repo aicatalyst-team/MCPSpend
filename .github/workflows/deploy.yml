@@ -24,9 +24,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            -L 18000:localhost:8000 -N -f \
-            root@${{ secrets.COOLIFY_HOST }}
+          for attempt in 1 2 3; do
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+              -L 18000:localhost:8000 -N -f \
+              root@${{ secrets.COOLIFY_HOST }} && break
+            echo "SSH attempt $attempt failed, retrying..."
+            sleep 5
+          done
           sleep 2
           response=$(curl -s -o /dev/null -w "%{http_code}" -X GET \
             "http://localhost:18000/api/v1/deploy?uuid=${{ secrets.COOLIFY_API_UUID }}&force=false" \
@@ -47,9 +51,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            -L 18000:localhost:8000 -N -f \
-            root@${{ secrets.COOLIFY_HOST }}
+          for attempt in 1 2 3; do
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+              -L 18000:localhost:8000 -N -f \
+              root@${{ secrets.COOLIFY_HOST }} && break
+            echo "SSH attempt $attempt failed, retrying..."
+            sleep 5
+          done
           sleep 2
           response=$(curl -s -o /dev/null -w "%{http_code}" -X GET \
             "http://localhost:18000/api/v1/deploy?uuid=${{ secrets.COOLIFY_WORKER_UUID }}&force=false" \
@@ -70,9 +78,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            -L 18000:localhost:8000 -N -f \
-            root@${{ secrets.COOLIFY_HOST }}
+          for attempt in 1 2 3; do
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+              -L 18000:localhost:8000 -N -f \
+              root@${{ secrets.COOLIFY_HOST }} && break
+            echo "SSH attempt $attempt failed, retrying..."
+            sleep 5
+          done
           sleep 2
           response=$(curl -s -o /dev/null -w "%{http_code}" -X GET \
             "http://localhost:18000/api/v1/deploy?uuid=${{ secrets.COOLIFY_DASHBOARD_UUID }}&force=false" \
