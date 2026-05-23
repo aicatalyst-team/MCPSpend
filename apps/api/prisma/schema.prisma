@@ -33,7 +33,7 @@ model Organization {
   stripeCustomerId     String?  @unique
   stripeSubscriptionId String?  @unique
   callsThisMonth       Int      @default(0)
-  callsLimit           Int      @default(50000)
+  callsLimit           Int      @default(25000)
   billingCycleStart    DateTime @default(now())
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt

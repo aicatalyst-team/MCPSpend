@@ -95,13 +95,16 @@ router.post('/', async (req: AuthRequest, res) => {
     })
   }
 
-  // Soft quota enforcement for FREE plan; otherwise just track usage
-  if (org.plan === 'FREE' && org.callsThisMonth + resolved.length > org.callsLimit) {
+  // Hard quota enforcement for ALL plans. Once an org is over its monthly limit,
+  // we block until they upgrade or the cycle resets. Paid users hitting their cap
+  // should upgrade; free users hitting 25k should either upgrade or wait.
+  if (org.callsThisMonth + resolved.length > org.callsLimit) {
     res.status(429).json({
-      error: 'Monthly quota exceeded',
+      error: org.plan === 'FREE' ? 'Free quota exceeded — upgrade to keep tracking calls' : 'Monthly quota exceeded — upgrade your plan',
+      plan: org.plan,
       used: org.callsThisMonth,
       limit: org.callsLimit,
-      upgradeUrl: `${process.env.DASHBOARD_URL}/billing`,
+      upgradeUrl: `${process.env.DASHBOARD_URL?.split(',')[0]?.trim() || 'https://mcpspend.com'}/dashboard/billing`,
     })
     return
   }

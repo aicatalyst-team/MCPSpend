@@ -7,11 +7,21 @@ import { slugify, randomSlugSuffix } from '../lib/slug'
 
 const router = Router()
 
+// Map every Stripe Price (monthly OR yearly) to plan + monthly call limit.
+// The same plan share the same limit regardless of cadence.
 const PLAN_LIMITS: Record<string, { limit: number; plan: 'PRO' | 'TEAM' | 'ENTERPRISE' }> = {
-  [process.env.STRIPE_PRICE_PRO || 'price_pro']:        { limit: 1_000_000,   plan: 'PRO' },
-  [process.env.STRIPE_PRICE_TEAM || 'price_team']:      { limit: 10_000_000,  plan: 'TEAM' },
-  [process.env.STRIPE_PRICE_ENT || 'price_enterprise']: { limit: 999_999_999, plan: 'ENTERPRISE' },
+  [process.env.STRIPE_PRICE_PRO         || 'price_pro']:           { limit: 1_000_000,   plan: 'PRO' },
+  [process.env.STRIPE_PRICE_PRO_YEARLY  || 'price_pro_yearly']:    { limit: 1_000_000,   plan: 'PRO' },
+  [process.env.STRIPE_PRICE_TEAM        || 'price_team']:          { limit: 10_000_000,  plan: 'TEAM' },
+  [process.env.STRIPE_PRICE_TEAM_YEARLY || 'price_team_yearly']:   { limit: 10_000_000,  plan: 'TEAM' },
+  [process.env.STRIPE_PRICE_ENT         || 'price_enterprise']:    { limit: 999_999_999, plan: 'ENTERPRISE' },
+  [process.env.STRIPE_PRICE_ENT_YEARLY  || 'price_ent_yearly']:    { limit: 999_999_999, plan: 'ENTERPRISE' },
 }
+
+// Free-tier monthly call limit (also referenced in schema default). Lowered
+// from 50k to 25k 2026-05-23 — at 50k a heavy Cursor/Claude Code user could
+// stay on free forever; 25k is enough to see value but not enough to live on.
+const FREE_TIER_LIMIT = 25_000
 
 function isMcpSpendEvent(obj: { metadata?: Record<string, string> }): boolean {
   return !obj.metadata?.project || obj.metadata.project === 'mcpspend'
@@ -121,7 +131,27 @@ async function handleSignupCheckout(session: Stripe.Checkout.Session) {
   console.log(`[webhook] signup processed: ${email} → ${plan}, org=${organizationId}`)
 }
 
+// Stripe subscription statuses that mean "no active paid access":
+// - past_due / unpaid: latest invoice failed, payment retries exhausted
+// - canceled / incomplete_expired: explicitly canceled or initial payment never completed
+const INACTIVE_STATUSES = new Set(['past_due', 'unpaid', 'canceled', 'incomplete_expired'])
+
 async function handleSubscriptionChange(sub: Stripe.Subscription) {
+  // Failed-payment grace ended OR sub canceled → downgrade to FREE so the
+  // quota check in /v1/ingest starts blocking. We do NOT clear stripeCustomerId
+  // (so they can resume on the same Stripe customer record).
+  if (INACTIVE_STATUSES.has(sub.status)) {
+    await prisma.organization.updateMany({
+      where: { stripeCustomerId: sub.customer as string },
+      data: {
+        plan: 'FREE',
+        callsLimit: FREE_TIER_LIMIT,
+        stripeSubscriptionId: null,
+      },
+    })
+    return
+  }
+
   const priceId = sub.items.data[0]?.price.id
   const planInfo = PLAN_LIMITS[priceId]
   if (!planInfo) return
@@ -173,7 +203,7 @@ router.post('/stripe', async (req, res) => {
         const sub = event.data.object as Stripe.Subscription
         await prisma.organization.updateMany({
           where: { stripeCustomerId: sub.customer as string },
-          data: { plan: 'FREE', callsLimit: 50_000, stripeSubscriptionId: null },
+          data: { plan: 'FREE', callsLimit: FREE_TIER_LIMIT, stripeSubscriptionId: null },
         })
         break
       }

@@ -125,14 +125,44 @@ export interface WrapResult {
   reason?: string
 }
 
+// We support two wrap shapes:
+//  - npx-first  (default, recommended): command='npx', args=['-y','@mcpspend/proxy','wrap',...]
+//     No global install required — works the moment Node is on PATH.
+//  - bin-direct (legacy / for users who installed -g @mcpspend/proxy):
+//     command='mcpspend', args=['wrap',...]
+// `isAlreadyWrapped` accepts BOTH shapes so we don't re-wrap when migrating from
+// the old layout, and so users who manually pinned the global binary aren't disturbed.
+
 const MCPSPEND_BIN_NAMES = new Set(['mcpspend', 'mcpspend.cmd', 'mcpspend.exe'])
+const NPX_BIN_NAMES = new Set(['npx', 'npx.cmd', 'npx.exe'])
+const PROXY_PKG = '@mcpspend/proxy'
 
 function isAlreadyWrapped(entry: McpServerEntry): boolean {
   const cmd = (entry.command || '').toLowerCase()
   const base = cmd.split(/[\\/]/).pop() || cmd
-  if (!MCPSPEND_BIN_NAMES.has(base)) return false
-  const firstArg = (entry.args || [])[0]
-  return firstArg === 'wrap'
+  const args = entry.args || []
+
+  // Shape A: `mcpspend wrap ...`
+  if (MCPSPEND_BIN_NAMES.has(base) && args[0] === 'wrap') return true
+
+  // Shape B: `npx [-y] @mcpspend/proxy wrap ...`
+  if (NPX_BIN_NAMES.has(base)) {
+    const skipFlag = args[0] === '-y' || args[0] === '--yes' ? 1 : 0
+    if (args[skipFlag] === PROXY_PKG && args[skipFlag + 1] === 'wrap') return true
+  }
+
+  return false
+}
+
+/**
+ * Find the position of the original command/args after the wrap prefix. Returns
+ * the index of the `--` separator, or -1 if the entry isn't wrapped.
+ */
+function findOriginalCommandStart(entry: McpServerEntry): number {
+  if (!isAlreadyWrapped(entry)) return -1
+  const args = entry.args || []
+  const sepIdx = args.indexOf('--')
+  return sepIdx === -1 ? -1 : sepIdx
 }
 
 export interface WrapOptions {
@@ -140,36 +170,42 @@ export interface WrapOptions {
   projectId?: string
   endpoint?: string
   agentName?: string
+  /**
+   * Wrap style:
+   *  - 'npx' (default): emits `npx -y @mcpspend/proxy wrap -- <orig>`. Works without a global install.
+   *  - 'bin': emits `mcpspend wrap -- <orig>`. Requires `npm i -g @mcpspend/proxy`.
+   */
+  style?: 'npx' | 'bin'
 }
 
 /**
- * Wrap a single MCP server entry with `mcpspend wrap -- <original>`.
- * Returns a NEW entry; does not mutate the original.
+ * Wrap a single MCP server entry. Returns a NEW entry; does not mutate the original.
  *
- * Strategy:
- * - Keep env untouched.
- * - command becomes "mcpspend".
- * - args = [wrap, --project X (if any), --agent Y (if any), --, <original command>, ...original args]
- *   We deliberately do NOT bake the API key into args — it would land in plaintext config files
- *   committed to git. Users set it via `mcpspend config set apiKey` (stored in ~/.mcpspend/config.json
- *   with 0600 perms) or MCPSPEND_API_KEY env.
+ * - Keeps `env` untouched.
+ * - API key is NOT baked into args (would leak into git-tracked dotfiles). The proxy
+ *   reads it from ~/.mcpspend/config.json (mode 0600) or MCPSPEND_API_KEY env.
  */
 export function wrapEntry(entry: McpServerEntry, opts: WrapOptions = {}): McpServerEntry {
-  const args: string[] = ['wrap']
-  if (opts.endpoint) args.push('--endpoint', opts.endpoint)
-  if (opts.projectId) args.push('--project', opts.projectId)
-  if (opts.agentName) args.push('--agent', opts.agentName)
-  args.push('--', entry.command, ...(entry.args || []))
+  const style = opts.style || 'npx'
 
-  const next: McpServerEntry = { ...entry, command: 'mcpspend', args }
-  return next
+  const wrapArgs: string[] = ['wrap']
+  if (opts.endpoint) wrapArgs.push('--endpoint', opts.endpoint)
+  if (opts.projectId) wrapArgs.push('--project', opts.projectId)
+  if (opts.agentName) wrapArgs.push('--agent', opts.agentName)
+  wrapArgs.push('--', entry.command, ...(entry.args || []))
+
+  if (style === 'bin') {
+    return { ...entry, command: 'mcpspend', args: wrapArgs }
+  }
+  // npx style — prefix wrapArgs with `-y @mcpspend/proxy`.
+  return { ...entry, command: 'npx', args: ['-y', PROXY_PKG, ...wrapArgs] }
 }
 
 export function unwrapEntry(entry: McpServerEntry): McpServerEntry | null {
-  if (!isAlreadyWrapped(entry)) return null
+  const sepIdx = findOriginalCommandStart(entry)
+  if (sepIdx === -1) return null
   const args = entry.args || []
-  const sepIdx = args.indexOf('--')
-  if (sepIdx === -1 || sepIdx + 1 >= args.length) return null
+  if (sepIdx + 1 >= args.length) return null
   const restored: McpServerEntry = {
     ...entry,
     command: args[sepIdx + 1],
@@ -202,7 +238,7 @@ export function wrapAllServers(
       continue
     }
     next[name] = wrapEntry(entry, opts)
-    results.push({ serverName: name, status: 'wrapped' })
+    results.push({ serverName: name, status: 'wrapped' as const })
   }
 
   return { config: { ...config, [serversKey]: next }, results }

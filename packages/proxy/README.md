@@ -4,24 +4,20 @@ One-command observability for [MCP](https://modelcontextprotocol.io) (Model Cont
 
 Detects every MCP client installed on your machine — Claude Desktop, Cursor, Windsurf, VS Code, Claude Code — and transparently wraps each configured server so MCPSpend can attribute tool calls, latency and cost. The proxy never blocks the MCP wire: if our API is unreachable, your agent keeps working.
 
-## Install
+## Zero-friction setup — no install needed
 
 ```sh
-npm install -g @mcpspend/proxy
-```
-
-## Zero-friction setup
-
-```sh
-mcpspend init --key mcps_live_xxx
+npx @mcpspend/proxy init --key mcps_live_xxx
 ```
 
 That single command:
 
 1. Saves your API key to `~/.mcpspend/config.json` (mode `0600`).
 2. Discovers every supported MCP client config on your machine.
-3. Rewrites each `mcpServers` entry to be wrapped by `mcpspend wrap --`.
+3. Rewrites each `mcpServers` entry to be wrapped by `npx -y @mcpspend/proxy wrap --` (so the moment you restart your MCP client, it auto-fetches the proxy if missing).
 4. Leaves a `.mcpspend.bak` backup next to every file it touches.
+
+> Prefer a global binary? `npm install -g @mcpspend/proxy` then use `mcpspend init` — everything below works the same way.
 
 Restart your clients (Claude Desktop, Cursor, Windsurf, etc.) and head to [mcpspend.com](https://mcpspend.com) — calls start showing up within a minute.
 
@@ -30,7 +26,7 @@ Get an API key at [mcpspend.com/dashboard/keys](https://mcpspend.com/dashboard/k
 ## Verify
 
 ```sh
-mcpspend doctor
+npx @mcpspend/proxy doctor
 ```
 
 Reports API key status, endpoint reachability, and for every detected client: how many MCP servers are configured and how many are wrapped.
@@ -38,7 +34,7 @@ Reports API key status, endpoint reachability, and for every detected client: ho
 ## Undo
 
 ```sh
-mcpspend init --unwrap
+npx @mcpspend/proxy init --unwrap
 ```
 
 Restores every wrapped entry to its original `command` + `args`. The `.mcpspend.bak` files are left in place for paranoia.
@@ -58,17 +54,17 @@ Restores every wrapped entry to its original `command` + `args`. The `.mcpspend.
 If you want to wrap one specific invocation without touching client configs:
 
 ```sh
-mcpspend wrap --key mcps_live_xxx -- npx @modelcontextprotocol/server-filesystem /data
+npx @mcpspend/proxy wrap --key mcps_live_xxx -- npx @modelcontextprotocol/server-filesystem /data
 ```
 
-Or, equivalently, paste this into a client config yourself:
+Or paste this into a client config yourself:
 
 ```json
 {
   "mcpServers": {
     "filesystem": {
-      "command": "mcpspend",
-      "args": ["wrap", "--", "npx", "@modelcontextprotocol/server-filesystem", "/Users/me"]
+      "command": "npx",
+      "args": ["-y", "@mcpspend/proxy", "wrap", "--", "npx", "@modelcontextprotocol/server-filesystem", "/Users/me"]
     }
   }
 }
