@@ -20,13 +20,13 @@ export const metadata: Metadata = {
     siteName: 'MCPSpend',
     title: 'MCPSpend — Cost attribution & observability for MCP tools',
     description:
-      'Know what every MCP call costs you. Real-time attribution, audit logs, and SOC 2-ready observability for teams shipping AI to production.',
+      'Know what every MCP call costs you. Real-time attribution, complete audit logs, and budget alerts for teams shipping AI to production.',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'MCPSpend — Cost attribution & observability for MCP tools',
     description:
-      'Know what every MCP call costs you. Real-time attribution, audit logs, and SOC 2-ready observability for teams shipping AI to production.',
+      'Know what every MCP call costs you. Real-time attribution, complete audit logs, and budget alerts for teams shipping AI to production.',
   },
   robots: { index: true, follow: true },
 }

@@ -60,11 +60,11 @@ const tiers = [
     highlighted: false,
     features: [
       'Unlimited calls',
-      'SOC 2 reports & DPA',
-      'Dedicated infra (single-tenant)',
+      'DPA (Data Processing Agreement)',
+      'Dedicated infra (single-tenant) available',
       'Audit logs (unlimited retention)',
-      '99.9% uptime SLA',
-      'Dedicated CSM',
+      'Custom SLA',
+      'Dedicated support contact',
     ],
   },
 ]

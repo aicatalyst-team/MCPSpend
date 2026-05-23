@@ -8,8 +8,8 @@ const pains = [
     body: 'You can\'t answer "which customer cost us $4k last week" or "which workflow is bleeding tokens." Engineering ships blind.',
   },
   {
-    title: 'Compliance has no audit trail',
-    body: 'SOC 2, ISO 27001, internal reviews — auditors want every tool call logged, attributed, and queryable. Spreadsheets don\'t cut it.',
+    title: 'No audit trail when you need one',
+    body: 'When finance, security, or a customer asks "what did this AI actually do last Tuesday at 3pm?" — you have no answer. Logs are scattered, lossy, or missing.',
   },
 ]
 

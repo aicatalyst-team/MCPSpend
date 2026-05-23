@@ -16,8 +16,8 @@ const features = [
     body: 'p50/p95/p99 latency per MCP tool. Know which providers are slow before customers complain.',
   },
   {
-    title: 'SOC 2-ready audit logs',
-    body: 'Every call logged with full provenance. Immutable, exportable, queryable. Built for compliance from day one.',
+    title: 'Complete audit logs',
+    body: 'Every call logged with full provenance — who, when, what, how much. Immutable, queryable, exportable to your warehouse.',
   },
   {
     title: 'Open formats, no lock-in',
