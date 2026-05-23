@@ -49,14 +49,33 @@ router.post('/', async (req: AuthRequest, res) => {
   }
 
   const calls = parsed.data
-  const fallbackProjectId = req.projectId
+  let fallbackProjectId = req.projectId
 
-  // Resolve projectId for each call: explicit > apiKey-scoped > error
+  // If neither the call nor the API key specifies a project, auto-resolve to
+  // the org's first project (auto-creating "Default" if the org has none).
+  // This makes the proxy "just work" for new users without forcing them to
+  // create a project + scope a key before they can ingest.
+  const needsFallback = calls.some(c => !c.projectId) && !fallbackProjectId
+  if (needsFallback) {
+    let project = await prisma.project.findFirst({
+      where: { organizationId }, orderBy: { createdAt: 'asc' }, select: { id: true },
+    })
+    if (!project) {
+      project = await prisma.project.create({
+        data: { organizationId, name: 'Default', slug: 'default' },
+        select: { id: true },
+      })
+    }
+    fallbackProjectId = project.id
+  }
+
+  // Resolve projectId for each call: explicit > apiKey-scoped > org default
   const resolved: ToolCallPayload[] = []
   for (const c of calls) {
     const projectId = c.projectId ?? fallbackProjectId
     if (!projectId) {
-      res.status(400).json({ error: 'projectId required when API key is not project-scoped' })
+      // Should be unreachable now, but kept as a defensive guard
+      res.status(400).json({ error: 'projectId could not be resolved' })
       return
     }
     resolved.push({
