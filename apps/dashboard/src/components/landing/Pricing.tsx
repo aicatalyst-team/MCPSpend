@@ -52,11 +52,11 @@ const tiers = [
   },
   {
     name: 'Enterprise',
-    price: 'Custom',
-    cadence: 'annual',
+    price: '$499',
+    cadence: 'per month',
     blurb: 'For regulated industries and large deployments.',
-    cta: 'Book a call',
-    href: 'mailto:support@mcpspend.com?subject=Enterprise%20inquiry',
+    cta: 'Start Enterprise',
+    href: '/register?plan=enterprise',
     highlighted: false,
     features: [
       'Unlimited calls',
