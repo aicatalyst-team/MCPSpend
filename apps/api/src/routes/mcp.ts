@@ -531,6 +531,17 @@ router.post('/', async (req, res) => {
         reply({ result: {} })
         return
 
+      // Smithery (and other scanners) probe these even on servers that only
+      // implement tools. Returning empty lists silences the "Failed to list"
+      // warning in inspect logs without us actually shipping resources or
+      // prompts. If we ever add them, just plug real lists here.
+      case 'resources/list':
+        reply({ result: { resources: [] } })
+        return
+      case 'prompts/list':
+        reply({ result: { prompts: [] } })
+        return
+
       default:
         reply({ error: { code: -32601, message: `Method not found: ${rpc.method}` } })
         return
