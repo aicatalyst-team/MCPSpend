@@ -1,0 +1,31 @@
+import Link from 'next/link'
+
+export function Nav() {
+  return (
+    <header className="sticky top-0 z-50 backdrop-blur-md bg-gray-950/70 border-b border-white/5">
+      <nav className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+          <span className="inline-block w-6 h-6 rounded-md bg-gradient-to-br from-brand-500 to-brand-700" />
+          MCPSpend
+        </Link>
+        <div className="hidden md:flex items-center gap-8 text-sm text-gray-400">
+          <a href="#problem" className="hover:text-white transition-colors">The problem</a>
+          <a href="#how" className="hover:text-white transition-colors">How it works</a>
+          <a href="#features" className="hover:text-white transition-colors">Features</a>
+          <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link href="/login" className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:inline">
+            Sign in
+          </Link>
+          <Link
+            href="/register"
+            className="text-sm bg-white text-gray-950 font-semibold px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            Start free
+          </Link>
+        </div>
+      </nav>
+    </header>
+  )
+}
