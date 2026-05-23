@@ -13,6 +13,22 @@ export function Footer() {
           <p className="mt-4 text-gray-400 max-w-sm">
             Cost attribution and observability for MCP tool calls. Built for teams shipping AI to production.
           </p>
+          {/* Product Hunt featured badge. Light theme variant since our footer
+              is dark — the SVG includes its own background and reads cleanly. */}
+          <a
+            href="https://www.producthunt.com/products/mcpspend?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-mcpspend"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-5 inline-block"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1154250&theme=light"
+              alt="MCPSpend - Know what your AI agents really cost | Product Hunt"
+              width={250}
+              height={54}
+            />
+          </a>
         </div>
         <div>
           <h4 className="text-white font-medium mb-3">Product</h4>

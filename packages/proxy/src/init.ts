@@ -250,6 +250,21 @@ export interface DoctorReport {
   apiKeySource: 'env' | 'config' | 'none'
   endpointReachable?: boolean
   endpointError?: string
+  // When the API key resolves, we hit /api/auth/me with it so the doctor can
+  // confirm "yes, this key is good, here's the org you'll be writing to".
+  // Empty if no key or key was rejected.
+  account?: {
+    orgName: string
+    plan: string
+    callsThisMonth: number
+    callsLimit: number
+  }
+  // Most recent call seen — gives users a quick "data is flowing" signal.
+  lastCall?: {
+    serverName: string
+    toolName: string
+    calledAt: string
+  } | null
   clients: Array<{
     client: ClientDefinition['id']
     name: string
@@ -290,13 +305,14 @@ export async function runDoctor(cliVersion: string): Promise<DoctorReport> {
     return { client: c.id, name: c.name, path: found.path, detected: true, serversCount, wrappedCount }
   })
 
+  const baseUrl = cfg.endpoint || 'https://api.mcpspend.com'
+
   let endpointReachable: boolean | undefined
   let endpointError: string | undefined
   try {
-    const url = (cfg.endpoint || 'https://api.mcpspend.com') + '/health'
     const ac = new AbortController()
     const timer = setTimeout(() => ac.abort(), 5000)
-    const resp = await fetch(url, { signal: ac.signal })
+    const resp = await fetch(baseUrl + '/health', { signal: ac.signal })
     clearTimeout(timer)
     endpointReachable = resp.ok
     if (!resp.ok) endpointError = `HTTP ${resp.status}`
@@ -305,12 +321,78 @@ export async function runDoctor(cliVersion: string): Promise<DoctorReport> {
     endpointError = (err as Error).message
   }
 
+  // Probe the key — gives users actionable confirmation that the key resolves,
+  // which org it points at, and current usage. We catch every error so doctor
+  // never crashes on a broken backend; account just stays undefined.
+  let account: DoctorReport['account']
+  let lastCall: DoctorReport['lastCall']
+  const key = process.env.MCPSPEND_API_KEY || cfg.apiKey
+  if (key && endpointReachable) {
+    try {
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 5000)
+      const r = await fetch(baseUrl + '/api/stats/sessions?limit=1', {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: ac.signal,
+      })
+      clearTimeout(timer)
+      if (r.ok) {
+        const sessions = (await r.json()) as Array<{
+          id: string
+          startedAt: string
+          toolCallCount: number
+          totalCostUsd: number
+        }>
+        if (sessions[0]) {
+          // No per-call endpoint here — last session's startedAt is the cheapest
+          // proxy for "we've seen activity recently".
+          lastCall = {
+            serverName: 'session',
+            toolName: sessions[0].id,
+            calledAt: sessions[0].startedAt,
+          }
+        } else {
+          lastCall = null
+        }
+      }
+    } catch {
+      // ignore — best-effort
+    }
+
+    // Org/plan probe via /api/auth/me equivalent — API keys reach this through
+    // the same auth middleware but only get back their own org details.
+    try {
+      const ac = new AbortController()
+      const timer = setTimeout(() => ac.abort(), 5000)
+      const r = await fetch(baseUrl + '/api/organizations/current', {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: ac.signal,
+      })
+      clearTimeout(timer)
+      if (r.ok) {
+        const org = (await r.json()) as {
+          name: string; plan: string; callsThisMonth: number; callsLimit: number
+        }
+        account = {
+          orgName: org.name,
+          plan: org.plan,
+          callsThisMonth: org.callsThisMonth,
+          callsLimit: org.callsLimit,
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     cliVersion,
     apiKeyConfigured: apiKeySource !== 'none',
     apiKeySource,
     endpointReachable,
     endpointError,
+    account,
+    lastCall,
     clients,
   }
 }
@@ -321,6 +403,24 @@ export function formatDoctor(report: DoctorReport): string {
   lines.push('')
   lines.push(`API key:    ${report.apiKeyConfigured ? '✓' : '✗'} (${report.apiKeySource})`)
   lines.push(`Endpoint:   ${report.endpointReachable ? '✓ reachable' : `✗ ${report.endpointError || 'unreachable'}`}`)
+
+  if (report.account) {
+    const a = report.account
+    const pct = a.callsLimit > 0 ? Math.round((a.callsThisMonth / a.callsLimit) * 100) : 0
+    lines.push(`Account:    ✓ ${a.orgName} (${a.plan})`)
+    lines.push(`Usage:      ${a.callsThisMonth.toLocaleString()} / ${a.callsLimit.toLocaleString()} calls this month (${pct}%)`)
+  } else if (report.apiKeyConfigured && report.endpointReachable) {
+    lines.push(`Account:    ✗ API key was rejected — generate a new one at https://mcpspend.com/dashboard/keys`)
+  }
+
+  if (report.lastCall) {
+    const when = report.lastCall.calledAt
+    const ago = humanAgo(new Date(when))
+    lines.push(`Last call:  ${ago}`)
+  } else if (report.account) {
+    lines.push(`Last call:  none yet — make any tool call in your MCP client and it shows up here within seconds`)
+  }
+
   lines.push('')
   lines.push('Clients:')
   for (const c of report.clients) {
@@ -337,4 +437,16 @@ export function formatDoctor(report: DoctorReport): string {
     lines.push('Next: mcpspend config set apiKey mcps_live_xxx  (get one at https://mcpspend.com/dashboard/keys)')
   }
   return lines.join('\n')
+}
+
+function humanAgo(d: Date): string {
+  const ms = Date.now() - d.getTime()
+  const s = Math.floor(ms / 1000)
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const days = Math.floor(h / 24)
+  return `${days}d ago`
 }

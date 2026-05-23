@@ -36,7 +36,7 @@ export function Hero() {
             href="/register"
             className="bg-white text-gray-950 font-semibold px-7 py-3.5 rounded-xl hover:bg-gray-200 transition-colors"
           >
-            Start free — 50K calls/mo
+            Start free — 25K calls/mo
           </Link>
           <a
             href="#how"
@@ -45,6 +45,23 @@ export function Hero() {
             See how it works
           </a>
         </div>
+
+        {/* Product Hunt featured badge under the CTAs. Centered, opens in a new
+            tab. Uses the dark theme so it blends with the hero background. */}
+        <a
+          href="https://www.producthunt.com/products/mcpspend?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-mcpspend"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-8 inline-block"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1154250&theme=dark"
+            alt="MCPSpend - Know what your AI agents really cost | Product Hunt"
+            width={250}
+            height={54}
+          />
+        </a>
 
         <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-400">
           {trustItems.map((t) => (

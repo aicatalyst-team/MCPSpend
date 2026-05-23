@@ -5,7 +5,7 @@ import { runInit, formatReport, runDoctor, formatDoctor, reportCompatFromInit } 
 import { buildSnippet, formatSnippet, SnippetClient } from './snippet.js'
 import { runHttpBridge } from './http-bridge.js'
 
-const VERSION = '0.5.0'
+const VERSION = '0.5.1'
 
 const HELP = `mcpspend — observability proxy for MCP servers (v${VERSION})
 

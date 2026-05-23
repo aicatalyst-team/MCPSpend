@@ -72,12 +72,22 @@ function configFor(tab: InstallTab['id'], apiKey: string): { path: string; json:
   }
 }
 
+interface OverviewProbe {
+  totals: { callCount: number | null }
+}
+
 export function Onboarding() {
   const [projects, setProjects] = useState<Project[]>([])
   const [keys, setKeys] = useState<ApiKeySummary[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<InstallTab['id']>('claude-desktop')
   const [revealKey, setRevealKey] = useState<string | null>(null)
+  // Live "we just got your first call!" detection. Once the user reaches step 3
+  // (key exists), we poll the overview endpoint every 5s. When callCount > 0,
+  // the page auto-reloads so they land on the real dashboard.
+  const [firstCallSeen, setFirstCallSeen] = useState(false)
+  // Auto-create a default project if the user has zero — saves them a click.
+  const [autoCreating, setAutoCreating] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -88,6 +98,25 @@ export function Onboarding() {
       ])
       setProjects(p)
       setKeys(k.filter(x => !x.revokedAt))
+
+      // If they have NO projects at all, create one named "Default" on first
+      // page load. Most users won't care about projects on day one and the
+      // extra click was a measurable friction point.
+      if (p.length === 0 && !autoCreating) {
+        setAutoCreating(true)
+        try {
+          await api('/api/projects', { method: 'POST', body: JSON.stringify({ name: 'Default' }) })
+          const next = await api<Project[]>('/api/projects')
+          setProjects(next)
+        } catch (err) {
+          // FREE plan project limit (1) would be hit on a second org load —
+          // not a problem here since count was 0. Any other error: ignore so
+          // we don't break onboarding for transient API issues.
+          console.warn('auto-create project failed:', err)
+        } finally {
+          setAutoCreating(false)
+        }
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) return
     } finally {
@@ -95,7 +124,34 @@ export function Onboarding() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
+
+  // Poll for the first tool call once the user has a key but no data yet.
+  // 5s interval, gives up after 10 minutes (no point hammering forever).
+  useEffect(() => {
+    if (keys.length === 0 || firstCallSeen) return
+    let cancelled = false
+    let attempts = 0
+    const MAX_ATTEMPTS = 120 // 10 min at 5s
+
+    const tick = async () => {
+      if (cancelled || attempts >= MAX_ATTEMPTS) return
+      attempts++
+      try {
+        const o = await api<OverviewProbe>('/api/stats/overview?days=1')
+        if (o.totals.callCount && o.totals.callCount > 0) {
+          setFirstCallSeen(true)
+          // Soft reload so the page renders the real dashboard, not onboarding.
+          setTimeout(() => window.location.reload(), 1500)
+        }
+      } catch {
+        // Silent — transient errors are fine, we'll try again.
+      }
+    }
+    const id = setInterval(tick, 5000)
+    void tick()
+    return () => { cancelled = true; clearInterval(id) }
+  }, [keys.length, firstCallSeen])
 
   if (loading) return (
     <div className="flex items-center justify-center py-16">
@@ -110,9 +166,11 @@ export function Onboarding() {
   const step3: StepState = !hasKey ? 'pending' : 'active'
 
   const newestKey = keys[0]
+  const [creatingKey, setCreatingKey] = useState(false)
 
   async function createQuickKey() {
     if (!hasProject) return
+    setCreatingKey(true)
     try {
       const created = await api<{ plaintext: string; prefix: string }>('/api/keys', {
         method: 'POST',
@@ -122,8 +180,20 @@ export function Onboarding() {
       await load()
     } catch (err) {
       console.error(err)
+    } finally {
+      setCreatingKey(false)
     }
   }
+
+  // Auto-mint a key the moment they have a project but no key. Same
+  // friction-reduction logic as auto-creating the project. We set revealKey
+  // so the plaintext is shown to them once.
+  useEffect(() => {
+    if (hasProject && !hasKey && !creatingKey && !loading && !autoCreating) {
+      void createQuickKey()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasProject, hasKey, loading, autoCreating])
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -133,6 +203,25 @@ export function Onboarding() {
           Three steps and you&apos;ll see your first MCP tool call appear here in real time.
         </p>
       </div>
+
+      {firstCallSeen && (
+        <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-5 py-4 flex items-center gap-3">
+          <span className="text-2xl">🎉</span>
+          <div>
+            <p className="text-emerald-200 font-semibold">First tool call detected!</p>
+            <p className="text-emerald-300/80 text-sm">Loading your dashboard…</p>
+          </div>
+        </div>
+      )}
+
+      {hasKey && !firstCallSeen && (
+        <div className="rounded-2xl border border-brand-500/20 bg-brand-500/5 px-5 py-3 flex items-center gap-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-brand-400 animate-pulse" />
+          <p className="text-brand-200 text-sm">
+            Waiting for your first tool call… make any tool use in your MCP client and it&apos;ll appear here within seconds.
+          </p>
+        </div>
+      )}
 
       <Step number={1} state={step1} title="Create a project">
         {hasProject ? (
@@ -214,7 +303,11 @@ function Step3Install({ apiKey, keyIsFull, tab, setTab }: {
   const [copied, setCopied] = useState(false)
   const [advanced, setAdvanced] = useState(false)
 
-  const initCommand = `npx @mcpspend/proxy init --key ${apiKey}`
+  // --yes on npx prevents the "Ok to proceed? (y)" prompt from eating user
+  // input — particularly bad in PowerShell where the response gets interpreted
+  // as a separate command. Pin to @latest so users get the freshest detector
+  // logic on every run.
+  const initCommand = `npx --yes @mcpspend/proxy@latest init --key ${apiKey}`
 
   async function copyInit() {
     await navigator.clipboard.writeText(initCommand)
