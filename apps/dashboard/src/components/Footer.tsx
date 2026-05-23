@@ -29,6 +29,22 @@ export function Footer() {
               height={54}
             />
           </a>
+          {/* Smithery badge — required for the "Link to Smithery" verification
+              check. Smithery scans the homepage HTML for a link to our server
+              page; this anchor satisfies that scanner. */}
+          <a
+            href="https://smithery.ai/servers/andreisirbu91-lab/mcpspend"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-block"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://smithery.ai/badge/andreisirbu91-lab/mcpspend"
+              alt="MCPSpend on Smithery"
+              height={20}
+            />
+          </a>
         </div>
         <div>
           <h4 className="text-white font-medium mb-3">Product</h4>
