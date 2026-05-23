@@ -21,10 +21,16 @@ jobs:
     steps:
       - name: Trigger Coolify deploy — API
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            "http://${{ secrets.COOLIFY_HOST }}:8000/api/v1/deploy?uuid=${{ secrets.COOLIFY_API_UUID }}&force=false" \
-            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
-            -H "Content-Type: application/json")
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            -L 18000:localhost:8000 -N -f \
+            root@${{ secrets.COOLIFY_HOST }}
+          sleep 2
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X GET \
+            "http://localhost:18000/api/v1/deploy?uuid=${{ secrets.COOLIFY_API_UUID }}&force=false" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}")
           echo "Coolify API response: $response"
           if [ "$response" != "200" ] && [ "$response" != "201" ]; then
             echo "Deploy trigger failed with HTTP $response"
@@ -38,10 +44,16 @@ jobs:
     steps:
       - name: Trigger Coolify deploy — Worker
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            "http://${{ secrets.COOLIFY_HOST }}:8000/api/v1/deploy?uuid=${{ secrets.COOLIFY_WORKER_UUID }}&force=false" \
-            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
-            -H "Content-Type: application/json")
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            -L 18000:localhost:8000 -N -f \
+            root@${{ secrets.COOLIFY_HOST }}
+          sleep 2
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X GET \
+            "http://localhost:18000/api/v1/deploy?uuid=${{ secrets.COOLIFY_WORKER_UUID }}&force=false" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}")
           echo "Coolify Worker response: $response"
           if [ "$response" != "200" ] && [ "$response" != "201" ]; then
             echo "Deploy trigger failed with HTTP $response"
@@ -55,10 +67,16 @@ jobs:
     steps:
       - name: Trigger Coolify deploy — Dashboard
         run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            "http://${{ secrets.COOLIFY_HOST }}:8000/api/v1/deploy?uuid=${{ secrets.COOLIFY_DASHBOARD_UUID }}&force=false" \
-            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
-            -H "Content-Type: application/json")
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            -L 18000:localhost:8000 -N -f \
+            root@${{ secrets.COOLIFY_HOST }}
+          sleep 2
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X GET \
+            "http://localhost:18000/api/v1/deploy?uuid=${{ secrets.COOLIFY_DASHBOARD_UUID }}&force=false" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}")
           echo "Coolify Dashboard response: $response"
           if [ "$response" != "200" ] && [ "$response" != "201" ]; then
             echo "Deploy trigger failed with HTTP $response"
