@@ -3,7 +3,7 @@ RUN npm install -g pnpm@9.15.0
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/dashboard/package.json ./apps/dashboard/
 RUN pnpm install --frozen-lockfile --filter @mcpspend/dashboard
 
@@ -20,7 +20,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=builder /app/apps/dashboard/.next/standalone ./
 COPY --from=builder /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
-COPY --from=builder /app/apps/dashboard/public ./apps/dashboard/public 2>/dev/null || true
+RUN mkdir -p ./apps/dashboard/public
+COPY --from=builder /app/apps/dashboard/public ./apps/dashboard/public/
 
 EXPOSE 3000
 ENV PORT=3000
