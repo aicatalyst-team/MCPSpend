@@ -36,6 +36,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
+    "test": "node --test --import tsx src/clients.test.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },

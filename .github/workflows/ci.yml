@@ -32,6 +32,15 @@ jobs:
       - name: Typecheck API
         run: pnpm --filter @mcpspend/api run typecheck
 
+      - name: Typecheck dashboard
+        run: pnpm --filter @mcpspend/dashboard run typecheck
+
+      - name: Typecheck proxy
+        run: pnpm --filter @mcpspend/proxy run typecheck
+
+      - name: Run proxy unit tests
+        run: pnpm --filter @mcpspend/proxy run test
+
   build-api:
     name: Build API
     runs-on: ubuntu-latest
