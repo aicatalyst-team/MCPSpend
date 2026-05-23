@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { AuthRequest, requireOrg, requireRole } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 import { generateInvitationToken, hashInvitationToken, buildAcceptUrl } from '../lib/invitation'
+import { sendEmail } from '../lib/email'
+import { invitationEmail } from '../emails/templates'
 
 const router = Router()
 
@@ -58,10 +60,28 @@ router.post('/', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: AuthRequ
     select: { id: true, email: true, role: true, expiresAt: true, createdAt: true },
   })
 
-  // TODO(resend): send the invitation email here. For now return the URL so the inviter can share it manually.
+  // Fire-and-forget invitation email (only sends when RESEND_API_KEY is set)
+  const acceptUrl = buildAcceptUrl(plaintext)
+  const org = await prisma.organization.findUnique({
+    where: { id: req.organizationId! },
+    select: { name: true },
+  })
+  const inviter = await prisma.user.findUnique({
+    where: { id: req.userId! },
+    select: { name: true, email: true },
+  })
+  void sendEmail({
+    to: email,
+    ...invitationEmail({
+      organizationName: org?.name || 'a workspace',
+      invitedByName: inviter?.name || inviter?.email || 'A teammate',
+      acceptUrl,
+    }),
+  })
+
   res.status(201).json({
     invitation: inv,
-    acceptUrl: buildAcceptUrl(plaintext),
+    acceptUrl, // also returned so admins can share the link manually if email is disabled
   })
 })
 

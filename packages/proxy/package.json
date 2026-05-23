@@ -1,0 +1,43 @@
+{
+  "name": "@mcpspend/proxy",
+  "version": "0.1.0",
+  "description": "Transparent proxy CLI for MCP servers — tracks tool calls, latency, and cost via MCPSpend.",
+  "license": "MIT",
+  "homepage": "https://mcpspend.com",
+  "bugs": "mailto:support@mcpspend.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andreisirbu91-lab/MCPSpend.git",
+    "directory": "packages/proxy"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "observability",
+    "cost-tracking",
+    "ai",
+    "proxy"
+  ],
+  "bin": {
+    "mcpspend": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

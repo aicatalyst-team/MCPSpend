@@ -5,6 +5,8 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma'
 import { slugify, randomSlugSuffix } from '../lib/slug'
 import { hashInvitationToken } from '../lib/invitation'
+import { sendEmail } from '../lib/email'
+import { welcomeEmail } from '../emails/templates'
 
 const router = Router()
 
@@ -107,6 +109,14 @@ router.post('/register', async (req, res) => {
   })
 
   const token = signToken(result.user.id)
+
+  // Fire-and-forget welcome email
+  const dashboardUrl = process.env.DASHBOARD_URL?.split(',')[0]?.trim() || 'https://mcpspend.com'
+  void sendEmail({
+    to: result.user.email,
+    ...welcomeEmail({ name: result.user.name, dashboardUrl: `${dashboardUrl}/dashboard` }),
+  })
+
   res.status(201).json({
     user: result.user,
     memberships: result.memberships,
