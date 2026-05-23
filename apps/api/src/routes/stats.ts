@@ -22,7 +22,8 @@ router.get('/overview', requireOrg, async (req: AuthRequest, res) => {
   since.setUTCHours(0, 0, 0, 0)
 
   const [daily, totals, topTools, topServers] = await Promise.all([
-    // Daily totals: aggregate all per-tool rows by date (no special "total" row needed)
+    // Daily totals: aggregate all per-tool rows by date (no special "total" row needed). v2
+
     prisma.dailyStats.groupBy({
       by: ['date'],
       where: {
