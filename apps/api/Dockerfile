@@ -5,7 +5,8 @@ FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
-RUN pnpm install --frozen-lockfile --filter @mcpspend/api
+COPY apps/dashboard/package.json ./apps/dashboard/
+RUN pnpm install --frozen-lockfile
 
 FROM deps AS builder
 WORKDIR /app
@@ -26,4 +27,4 @@ COPY apps/api/package.json ./apps/api/
 
 WORKDIR /app/apps/api
 EXPOSE 4000
-CMD ["sh", "-c", "node -e 'require(\"@prisma/client\")' 2>/dev/null; npx prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "/app/node_modules/.bin/prisma migrate deploy && node dist/index.js"]
