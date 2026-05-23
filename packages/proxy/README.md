@@ -1,10 +1,8 @@
 # @mcpspend/proxy
 
-Transparent observability proxy for MCP (Model Context Protocol) servers.
+One-command observability for [MCP](https://modelcontextprotocol.io) (Model Context Protocol) servers.
 
-Wraps any stdio MCP server, intercepts JSON-RPC `tools/call` traffic, and reports each call (tool, latency, success, approximate token sizes) to [MCPSpend](https://mcpspend.com) for cost attribution and analytics.
-
-Fire-and-forget: the proxy never blocks the MCP wire — if the MCPSpend API is unreachable, your agent keeps working.
+Detects every MCP client installed on your machine — Claude Desktop, Cursor, Windsurf, VS Code, Claude Code — and transparently wraps each configured server so MCPSpend can attribute tool calls, latency and cost. The proxy never blocks the MCP wire: if our API is unreachable, your agent keeps working.
 
 ## Install
 
@@ -12,41 +10,65 @@ Fire-and-forget: the proxy never blocks the MCP wire — if the MCPSpend API is 
 npm install -g @mcpspend/proxy
 ```
 
-## Quick start
+## Zero-friction setup
 
-1. Sign in at [mcpspend.com](https://mcpspend.com) and create an API key.
-2. Configure once:
-   ```sh
-   mcpspend config set apiKey mcps_live_xxx
-   ```
-3. Wrap any MCP server you already use:
-   ```sh
-   mcpspend wrap -- npx @modelcontextprotocol/server-filesystem /path
-   ```
-
-## Usage with Claude Desktop / Claude Code
-
-Wherever you have an MCP server configured, prepend `mcpspend wrap --` to the command:
-
-**Before:**
-```json
-{
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["@modelcontextprotocol/server-filesystem", "/Users/me"]
-    }
-  }
-}
+```sh
+mcpspend init --key mcps_live_xxx
 ```
 
-**After:**
+That single command:
+
+1. Saves your API key to `~/.mcpspend/config.json` (mode `0600`).
+2. Discovers every supported MCP client config on your machine.
+3. Rewrites each `mcpServers` entry to be wrapped by `mcpspend wrap --`.
+4. Leaves a `.mcpspend.bak` backup next to every file it touches.
+
+Restart your clients (Claude Desktop, Cursor, Windsurf, etc.) and head to [mcpspend.com](https://mcpspend.com) — calls start showing up within a minute.
+
+Get an API key at [mcpspend.com/dashboard/keys](https://mcpspend.com/dashboard/keys).
+
+## Verify
+
+```sh
+mcpspend doctor
+```
+
+Reports API key status, endpoint reachability, and for every detected client: how many MCP servers are configured and how many are wrapped.
+
+## Undo
+
+```sh
+mcpspend init --unwrap
+```
+
+Restores every wrapped entry to its original `command` + `args`. The `.mcpspend.bak` files are left in place for paranoia.
+
+## Supported clients
+
+| Client | Config path (detected automatically) |
+|---|---|
+| Claude Desktop | `%APPDATA%\Claude\claude_desktop_config.json` · `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Cursor | `~/.cursor/mcp.json` |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` |
+| VS Code (user) | `%APPDATA%\Code\User\mcp.json` · `~/.config/Code/User/mcp.json` |
+| Claude Code | `~/.claude.json` |
+
+## Manual single-server wrap
+
+If you want to wrap one specific invocation without touching client configs:
+
+```sh
+mcpspend wrap --key mcps_live_xxx -- npx @modelcontextprotocol/server-filesystem /data
+```
+
+Or, equivalently, paste this into a client config yourself:
+
 ```json
 {
   "mcpServers": {
     "filesystem": {
       "command": "mcpspend",
-      "args": ["wrap", "--key", "mcps_live_xxx", "--", "npx", "@modelcontextprotocol/server-filesystem", "/Users/me"]
+      "args": ["wrap", "--", "npx", "@modelcontextprotocol/server-filesystem", "/Users/me"]
     }
   }
 }
@@ -64,9 +86,12 @@ CLI flags, environment variables, and `~/.mcpspend/config.json` are merged in th
 | Agent name | `--agent` | `MCPSPEND_AGENT_NAME` | `agentName` |
 | Disable tracking | `--disable` | `MCPSPEND_DISABLED=1` | `disabled: true` |
 
+The API key is **never** written into client config files (which often land in dotfile repos). It lives only in `~/.mcpspend/config.json` (mode `0600`) or `MCPSPEND_API_KEY`.
+
 ## Privacy
 
 The proxy reports:
+
 - Tool name (e.g. `read_file`)
 - Server name (e.g. `filesystem`)
 - Latency, success, error codes

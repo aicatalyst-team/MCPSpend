@@ -1,6 +1,6 @@
 {
   "name": "@mcpspend/proxy",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Transparent proxy CLI for MCP servers — tracks tool calls, latency, and cost via MCPSpend.",
   "license": "MIT",
   "homepage": "https://mcpspend.com",
@@ -22,6 +22,7 @@
     "mcpspend": "dist/cli.js"
   },
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
     "dist",
     "README.md"

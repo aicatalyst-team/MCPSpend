@@ -1,0 +1,10 @@
+.vscode/**
+src/**
+node_modules/**
+!node_modules/@mcpspend/proxy/dist/**
+!node_modules/@mcpspend/proxy/package.json
+!node_modules/cross-spawn/**
+tsconfig.json
+**/*.ts
+**/*.map
+.gitignore

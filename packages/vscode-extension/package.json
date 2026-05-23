@@ -1,0 +1,73 @@
+{
+  "name": "mcpspend-vscode",
+  "displayName": "MCPSpend",
+  "description": "One-click cost tracking for MCP servers in VS Code, Cursor, and Windsurf.",
+  "version": "0.1.0",
+  "publisher": "mcpspend",
+  "license": "MIT",
+  "homepage": "https://mcpspend.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andreisirbu91-lab/MCPSpend.git",
+    "directory": "packages/vscode-extension"
+  },
+  "bugs": "mailto:support@mcpspend.com",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["mcp", "model-context-protocol", "cost", "observability", "ai"],
+  "main": "./dist/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "mcpspend.init", "title": "MCPSpend: Wrap all MCP servers (init)" },
+      { "command": "mcpspend.unwrap", "title": "MCPSpend: Restore original MCP configs (unwrap)" },
+      { "command": "mcpspend.setApiKey", "title": "MCPSpend: Set API Key" },
+      { "command": "mcpspend.doctor", "title": "MCPSpend: Doctor — diagnose setup" },
+      { "command": "mcpspend.openDashboard", "title": "MCPSpend: Open dashboard" }
+    ],
+    "configuration": {
+      "title": "MCPSpend",
+      "properties": {
+        "mcpspend.apiKey": {
+          "type": "string",
+          "description": "API key. If empty, the extension falls back to ~/.mcpspend/config.json or the MCPSPEND_API_KEY env var. Tip: keep this in user (not workspace) settings.",
+          "scope": "application"
+        },
+        "mcpspend.endpoint": {
+          "type": "string",
+          "default": "https://api.mcpspend.com",
+          "description": "API endpoint."
+        },
+        "mcpspend.projectId": {
+          "type": "string",
+          "description": "Attribute calls to this project ID."
+        },
+        "mcpspend.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show MCPSpend status in the editor status bar."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "typecheck": "tsc --noEmit",
+    "package": "vsce package --no-dependencies",
+    "publish:vsce": "vsce publish --no-dependencies",
+    "publish:ovsx": "ovsx publish --no-dependencies"
+  },
+  "dependencies": {
+    "@mcpspend/proxy": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.10",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.1",
+    "ovsx": "^0.10.1",
+    "typescript": "^5.7.3"
+  }
+}

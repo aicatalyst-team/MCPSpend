@@ -1,0 +1,84 @@
+name: Publish mcpspend VS Code extension
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Where to publish'
+        required: true
+        default: 'both'
+        type: choice
+        options: [both, vsce, ovsx, package-only]
+  push:
+    branches: [main]
+    paths:
+      - 'packages/vscode-extension/**'
+
+jobs:
+  publish:
+    name: Build & publish extension
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Build proxy (extension bundles its dist)
+        working-directory: packages/proxy
+        run: pnpm run build
+
+      - name: Build extension
+        working-directory: packages/vscode-extension
+        run: pnpm run build
+
+      - name: Read extension version
+        id: ver
+        working-directory: packages/vscode-extension
+        run: |
+          v=$(node -p "require('./package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Package .vsix
+        working-directory: packages/vscode-extension
+        run: pnpm run package
+
+      - name: Upload .vsix as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcpspend-vscode-${{ steps.ver.outputs.version }}.vsix
+          path: packages/vscode-extension/*.vsix
+
+      - name: Publish to VS Code Marketplace
+        if: github.event_name == 'push' || inputs.target == 'both' || inputs.target == 'vsce'
+        working-directory: packages/vscode-extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::warning::VSCE_PAT not set — skipping Marketplace publish"
+          else
+            pnpm dlx @vscode/vsce publish --no-dependencies --pat "$VSCE_PAT" --packagePath *.vsix
+          fi
+
+      - name: Publish to Open VSX (Cursor + Windsurf use this)
+        if: github.event_name == 'push' || inputs.target == 'both' || inputs.target == 'ovsx'
+        working-directory: packages/vscode-extension
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::warning::OVSX_PAT not set — skipping Open VSX publish"
+          else
+            pnpm dlx ovsx publish --no-dependencies --pat "$OVSX_PAT" *.vsix
+          fi
