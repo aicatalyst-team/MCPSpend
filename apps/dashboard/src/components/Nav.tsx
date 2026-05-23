@@ -1,12 +1,13 @@
 import Link from 'next/link'
+import Image from 'next/image'
 
 export function Nav() {
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-gray-950/70 border-b border-white/5">
       <nav className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="inline-block w-6 h-6 rounded-md bg-gradient-to-br from-brand-500 to-brand-700" />
-          MCPSpend
+          <Image src="/logo.png" alt="MCPSpend" width={36} height={36} className="w-9 h-9 object-contain" priority />
+          <span className="text-white">MCPSpend</span>
         </Link>
         <div className="hidden md:flex items-center gap-8 text-sm text-gray-400">
           <a href="#problem" className="hover:text-white transition-colors">The problem</a>

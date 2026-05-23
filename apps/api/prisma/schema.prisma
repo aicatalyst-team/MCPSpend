@@ -7,130 +7,206 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Users & Auth ──────────────────────────────────────────
+// ─── Users (identity only — billing lives on Organization) ──
 
 model User {
-  id               String   @id @default(cuid())
-  email            String   @unique
-  name             String?
-  passwordHash     String?
-  plan             Plan     @default(FREE)
-  stripeCustomerId String?  @unique
-  // API key used by the proxy npm package (format: sk-mcs-...)
-  apiKey           String   @unique @default(cuid())
-  // Monthly quota tracking (reset each billing cycle)
-  callsThisMonth   Int      @default(0)
-  callsLimit       Int      @default(50000)   // FREE tier: 50K/month
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String?
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  projects         Project[]
-  sessions         Session[]
-  dailyStats       DailyStats[]
+  memberships     OrganizationMember[]
+  invitationsSent Invitation[]         @relation("InvitedBy")
+  apiKeysCreated  ApiKey[]             @relation("CreatedBy")
 }
 
-// ─── Projects (logical grouping of MCP servers) ────────────
+// ─── Organizations (billing + ownership boundary) ───────────
 
-model Project {
-  id          String   @id @default(cuid())
-  name        String
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Organization {
+  id                   String   @id @default(cuid())
+  name                 String
+  slug                 String   @unique
+  plan                 Plan     @default(FREE)
+  stripeCustomerId     String?  @unique
+  stripeSubscriptionId String?  @unique
+  callsThisMonth       Int      @default(0)
+  callsLimit           Int      @default(50000)
+  billingCycleStart    DateTime @default(now())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
-  sessions    Session[]
-  dailyStats  DailyStats[]
+  members      OrganizationMember[]
+  invitations  Invitation[]
+  projects     Project[]
+  apiKeys      ApiKey[]
+  sessions     Session[]
+  toolCalls    ToolCall[]
+  dailyStats   DailyStats[]
+}
 
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           Role         @default(MEMBER)
+  joinedAt       DateTime     @default(now())
+
+  @@unique([organizationId, userId])
   @@index([userId])
 }
 
-// ─── Sessions (one agent run = one session) ────────────────
+model Invitation {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email           String
+  role            Role         @default(MEMBER)
+  tokenHash       String       @unique
+  invitedByUserId String
+  invitedBy       User         @relation("InvitedBy", fields: [invitedByUserId], references: [id])
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId, email])
+}
+
+// ─── API Keys (per-org, used by the proxy npm package) ──────
+
+model ApiKey {
+  id              String        @id @default(cuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId       String?
+  project         Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  name            String
+  prefix          String
+  keyHash         String        @unique
+  createdByUserId String
+  createdBy       User          @relation("CreatedBy", fields: [createdByUserId], references: [id])
+  createdAt       DateTime      @default(now())
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+
+  sessions        Session[]
+
+  @@index([organizationId])
+  @@index([projectId])
+}
+
+// ─── Projects ───────────────────────────────────────────────
+
+model Project {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name            String
+  slug            String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  apiKeys     ApiKey[]
+  sessions    Session[]
+  toolCalls   ToolCall[]
+  dailyStats  DailyStats[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+// ─── Sessions (one agent run = one session) ─────────────────
 
 model Session {
-  id                String    @id @default(cuid())
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   projectId         String
-  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId            String
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  apiKeyId          String?
+  apiKey            ApiKey?      @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
   agentName         String?
   model             String?
-  startedAt         DateTime  @default(now())
+  startedAt         DateTime     @default(now())
   endedAt           DateTime?
-  totalInputTokens  Int       @default(0)
-  totalOutputTokens Int       @default(0)
-  totalCostUsd      Float     @default(0)
-  toolCallCount     Int       @default(0)
+  totalInputTokens  Int          @default(0)
+  totalOutputTokens Int          @default(0)
+  totalCostUsd      Float        @default(0)
+  toolCallCount     Int          @default(0)
 
   toolCalls         ToolCall[]
 
+  @@index([organizationId, startedAt(sort: Desc)])
   @@index([projectId, startedAt(sort: Desc)])
-  @@index([userId, startedAt(sort: Desc)])
 }
 
-// ─── Tool Calls (core fact table — partitioned in Postgres) ─
-// NOTE: After first migration, run:
-//   ALTER TABLE "ToolCall" PARTITION BY RANGE ("calledAt");
-//   CREATE TABLE tool_call_2026_05 PARTITION OF "ToolCall"
-//     FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
-// We do this manually via migration after initial deploy.
+// ─── Tool Calls (core fact table) ───────────────────────────
 
 model ToolCall {
-  id            String   @id @default(cuid())
-  userId        String
-  projectId     String
-  sessionId     String?
-  session       Session? @relation(fields: [sessionId], references: [id])
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sessionId       String?
+  session         Session?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
-  serverName    String           // e.g. "filesystem", "github"
-  toolName      String           // e.g. "read_file", "search_code"
-  model         String           // e.g. "claude-sonnet-4-6"
+  serverName      String
+  toolName        String
+  model           String
 
-  inputTokens   Int
-  outputTokens  Int
-  costUsd       Float            // pre-calculated at ingest time
+  inputTokens     Int
+  outputTokens    Int
+  costUsd         Float
 
-  latencyMs     Int?
-  success       Boolean  @default(true)
-  errorCode     String?
+  latencyMs       Int?
+  success         Boolean      @default(true)
+  errorCode       String?
 
-  calledAt      DateTime @default(now())
+  calledAt        DateTime     @default(now())
 
-  @@index([userId, calledAt(sort: Desc)])
+  @@index([organizationId, calledAt(sort: Desc)])
   @@index([projectId, calledAt(sort: Desc)])
   @@index([sessionId, calledAt(sort: Desc)])
-  @@index([userId, toolName, calledAt(sort: Desc)])
+  @@index([organizationId, toolName, calledAt(sort: Desc)])
 }
 
-// ─── Daily Stats (pre-aggregated — DO NOT query ToolCall for dashboards) ─
+// ─── Daily Stats (pre-aggregated for dashboards) ────────────
 
 model DailyStats {
-  id              String  @id @default(cuid())
-  userId          String
-  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   projectId       String?
-  project         Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project         Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  date            DateTime  // midnight UTC of the day
-  serverName      String?   // null = total for that day
-  toolName        String?   // null = total for server or day
+  date            DateTime
+  serverName      String?
+  toolName        String?
 
-  callCount       Int      @default(0)
-  inputTokens     Int      @default(0)
-  outputTokens    Int      @default(0)
-  costUsd         Float    @default(0)
-  errorCount      Int      @default(0)
+  callCount       Int          @default(0)
+  inputTokens     Int          @default(0)
+  outputTokens    Int          @default(0)
+  costUsd         Float        @default(0)
+  errorCount      Int          @default(0)
   avgLatencyMs    Float?
 
-  updatedAt       DateTime @updatedAt
+  updatedAt       DateTime     @updatedAt
 
-  // Unique constraint: one row per (user, project, date, server, tool)
-  @@unique([userId, projectId, date, serverName, toolName])
-  @@index([userId, date(sort: Desc)])
+  @@unique([organizationId, projectId, date, serverName, toolName])
+  @@index([organizationId, date(sort: Desc)])
   @@index([projectId, date(sort: Desc)])
 }
-
-// ─── Ingest Queue overflow tracking ────────────────────────
 
 model IngestError {
   id        String   @id @default(cuid())
@@ -141,8 +217,8 @@ model IngestError {
 }
 
 enum Plan {
-  FREE        // 50K calls/month
-  PRO         // 1M calls/month  — $29/mo
-  TEAM        // 10M calls/month — $99/mo
-  ENTERPRISE  // unlimited       — $499+/mo
+  FREE
+  PRO
+  TEAM
+  ENTERPRISE
 }

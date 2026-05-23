@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 
 export function Footer() {
   return (
@@ -6,7 +7,7 @@ export function Footer() {
       <div className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-4 gap-8 text-sm">
         <div className="col-span-2">
           <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight text-white">
-            <span className="inline-block w-6 h-6 rounded-md bg-gradient-to-br from-brand-500 to-brand-700" />
+            <Image src="/logo.png" alt="MCPSpend" width={36} height={36} className="w-9 h-9 object-contain" />
             MCPSpend
           </Link>
           <p className="mt-4 text-gray-400 max-w-sm">

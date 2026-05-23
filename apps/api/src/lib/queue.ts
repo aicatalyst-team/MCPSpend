@@ -6,12 +6,8 @@ const connection = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', 
   enableReadyCheck: false,
 })
 
-// ─── Ingest Queue ──────────────────────────────────────────
-// Receives raw tool call payloads from the API
-// Worker batches them into the DB every 500ms or 100 items
-
 export interface ToolCallPayload {
-  userId: string
+  organizationId: string
   projectId: string
   sessionId?: string
   serverName: string
@@ -29,14 +25,13 @@ export interface ToolCallPayload {
 export const ingestQueue = new Queue<ToolCallPayload>('tool-call-ingest', {
   connection,
   defaultJobOptions: {
-    removeOnComplete: 1000,   // keep last 1K completed jobs for debugging
-    removeOnFail: 5000,       // keep 5K failed for inspection
+    removeOnComplete: 1000,
+    removeOnFail: 5000,
     attempts: 3,
     backoff: { type: 'exponential', delay: 1000 },
   },
 })
 
-// Batch ingestion: up to 500 items at once for efficiency
 export async function enqueueToolCalls(payloads: ToolCallPayload[]): Promise<void> {
   const jobs = payloads.map((p) => ({ name: 'ingest', data: p }))
   await ingestQueue.addBulk(jobs)

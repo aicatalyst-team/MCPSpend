@@ -2,29 +2,52 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { api, auth, ApiError } from '@/lib/api'
 
 interface Overview {
-  daily: { date: string; _sum: { costUsd: number; callCount: number } }[]
-  totals: { costUsd: number; callCount: number; inputTokens: number; outputTokens: number; errorCount: number }
-  topTools: { toolName: string; serverName: string; _sum: { costUsd: number; callCount: number } }[]
-  topServers: { serverName: string; _sum: { costUsd: number; callCount: number } }[]
+  daily: { date: string; _sum: { costUsd: number | null; callCount: number | null } }[]
+  totals: { costUsd: number | null; callCount: number | null; inputTokens: number | null; outputTokens: number | null; errorCount: number | null }
+  topTools: { toolName: string; serverName: string | null; _sum: { costUsd: number | null; callCount: number | null } }[]
+  topServers: { serverName: string; _sum: { costUsd: number | null; callCount: number | null } }[]
+}
+
+interface MeResponse {
+  user: { id: string; email: string; name: string | null }
+  memberships: {
+    role: string
+    organization: {
+      id: string; name: string; slug: string; plan: string
+      callsThisMonth: number; callsLimit: number
+    }
+  }[]
 }
 
 export default function Dashboard() {
   const router = useRouter()
   const [overview, setOverview] = useState<Overview | null>(null)
+  const [me, setMe] = useState<MeResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) { router.push('/login'); return }
+    if (!auth.getToken()) { router.push('/login'); return }
 
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/stats/overview?days=30`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(setOverview)
-      .catch(err => { if (err === 401) router.push('/login') })
+    Promise.all([
+      api<MeResponse>('/api/auth/me'),
+      api<Overview>('/api/stats/overview?days=30'),
+    ])
+      .then(([meData, ov]) => {
+        setMe(meData)
+        if (!auth.getOrganizationId() && meData.memberships[0]) {
+          auth.setOrganization(meData.memberships[0].organization.id)
+        }
+        setOverview(ov)
+      })
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) {
+          auth.clear()
+          router.push('/login')
+        }
+      })
       .finally(() => setLoading(false))
   }, [router])
 
@@ -36,26 +59,57 @@ export default function Dashboard() {
 
   const totals = overview?.totals
   const daily = overview?.daily ?? []
+  const activeOrg = me?.memberships.find(m => m.organization.id === auth.getOrganizationId())?.organization
+  const usagePct = activeOrg?.callsLimit ? Math.min(100, (activeOrg.callsThisMonth / activeOrg.callsLimit) * 100) : 0
 
   return (
     <div className="min-h-screen bg-gray-950 p-6 space-y-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">MCPSpend</h1>
-        <button
-          onClick={() => { localStorage.removeItem('token'); router.push('/login') }}
-          className="text-sm text-gray-400 hover:text-gray-200"
-        >
-          Sign out
-        </button>
+        <div>
+          <h1 className="text-xl font-bold">MCPSpend</h1>
+          {activeOrg && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              {activeOrg.name} · <span className="uppercase font-semibold">{activeOrg.plan}</span>
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-4 text-sm">
+          <span className="text-gray-400">{me?.user.email}</span>
+          <button
+            onClick={() => { auth.clear(); router.push('/login') }}
+            className="text-gray-400 hover:text-gray-200"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
-      {/* KPI Cards */}
+      {activeOrg && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-300">Plan usage this month</span>
+            <span className="text-gray-400 font-mono">
+              {activeOrg.callsThisMonth.toLocaleString()} / {activeOrg.callsLimit.toLocaleString()} calls
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className={
+                'h-full rounded-full ' +
+                (usagePct > 90 ? 'bg-red-500' : usagePct > 75 ? 'bg-amber-500' : 'bg-brand-500')
+              }
+              style={{ width: `${usagePct}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Total cost (30d)', value: `$${(totals?.costUsd ?? 0).toFixed(4)}` },
           { label: 'Tool calls (30d)', value: (totals?.callCount ?? 0).toLocaleString() },
           { label: 'Input tokens', value: ((totals?.inputTokens ?? 0) / 1000).toFixed(1) + 'K' },
-          { label: 'Error rate', value: totals?.callCount ? `${((totals.errorCount / totals.callCount) * 100).toFixed(1)}%` : '—' },
+          { label: 'Error rate', value: totals?.callCount ? `${(((totals.errorCount ?? 0) / totals.callCount) * 100).toFixed(1)}%` : '—' },
         ].map(({ label, value }) => (
           <div key={label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <p className="text-xs text-gray-400">{label}</p>
@@ -64,7 +118,6 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Cost chart */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
         <h2 className="text-sm font-semibold text-gray-300 mb-4">Daily cost — last 30 days</h2>
         {daily.length === 0
@@ -72,8 +125,8 @@ export default function Dashboard() {
           : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={daily}>
-                <XAxis dataKey="date" tickFormatter={d => d.slice(5)} tick={{ fill: '#6b7280', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickFormatter={v => `$${v.toFixed(3)}`} />
+                <XAxis dataKey="date" tickFormatter={(d: string) => d.slice(5)} tick={{ fill: '#6b7280', fontSize: 11 }} />
+                <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickFormatter={(v: number) => `$${v.toFixed(3)}`} />
                 <Tooltip
                   contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 8 }}
                   formatter={(v: number) => [`$${v.toFixed(6)}`, 'Cost']}
@@ -87,14 +140,13 @@ export default function Dashboard() {
         }
       </div>
 
-      {/* Top tools */}
       <div className="grid md:grid-cols-2 gap-4">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
           <h2 className="text-sm font-semibold text-gray-300 mb-3">Top tools by cost</h2>
           <div className="space-y-2">
             {(overview?.topTools ?? []).slice(0, 8).map((t, i) => (
               <div key={i} className="flex justify-between items-center text-sm">
-                <span className="text-gray-300 truncate">{t.serverName}/{t.toolName}</span>
+                <span className="text-gray-300 truncate">{t.serverName ?? '—'}/{t.toolName}</span>
                 <span className="text-brand-400 font-mono ml-2">${(t._sum.costUsd ?? 0).toFixed(5)}</span>
               </div>
             ))}
@@ -115,12 +167,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* API key box */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
         <h2 className="text-sm font-semibold text-gray-300 mb-2">Install the proxy</h2>
+        <p className="text-xs text-gray-500 mb-3">
+          Create an API key under Settings → API Keys, then wrap your MCP server:
+        </p>
         <pre className="bg-gray-950 rounded-lg p-3 text-xs text-brand-400 overflow-x-auto">
 {`npm install -g @mcpspend/proxy
-mcpspend wrap --key YOUR_API_KEY -- npx @modelcontextprotocol/server-filesystem /path`}
+mcpspend wrap --key mcps_live_... -- npx @modelcontextprotocol/server-filesystem /path`}
         </pre>
       </div>
     </div>

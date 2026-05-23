@@ -8,7 +8,7 @@ import { calculateCost } from '../lib/tokenCost'
 const router = Router()
 
 const singleCallSchema = z.object({
-  projectId: z.string(),
+  projectId: z.string().optional(), // optional — if API key is project-scoped, projectId is inferred
   sessionId: z.string().optional(),
   serverName: z.string().max(100),
   toolName: z.string().max(100),
@@ -24,63 +24,71 @@ const singleCallSchema = z.object({
 const batchSchema = z.array(singleCallSchema).max(500)
 
 // POST /api/ingest — single or batch (array)
-// Returns 202 immediately — never blocks the proxy
+// Requires API-key auth: req.organizationId is set by the auth middleware.
 router.post('/', async (req: AuthRequest, res) => {
-  const userId = req.userId!
+  const organizationId = req.organizationId
+  if (!organizationId) {
+    res.status(401).json({ error: 'API key required' })
+    return
+  }
 
-  // Check quota
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
     select: { callsThisMonth: true, callsLimit: true, plan: true },
   })
-
-  if (!user) {
-    res.status(401).json({ error: 'User not found' })
+  if (!org) {
+    res.status(401).json({ error: 'Organization not found' })
     return
   }
 
   const body = Array.isArray(req.body) ? req.body : [req.body]
   const parsed = batchSchema.safeParse(body)
-
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid payload', details: parsed.error.flatten() })
     return
   }
 
   const calls = parsed.data
+  const fallbackProjectId = req.projectId
 
-  // Quota check (soft limit — warn, don't block PRO+)
-  if (user.plan === 'FREE' && user.callsThisMonth + calls.length > user.callsLimit) {
+  // Resolve projectId for each call: explicit > apiKey-scoped > error
+  const resolved: ToolCallPayload[] = []
+  for (const c of calls) {
+    const projectId = c.projectId ?? fallbackProjectId
+    if (!projectId) {
+      res.status(400).json({ error: 'projectId required when API key is not project-scoped' })
+      return
+    }
+    resolved.push({
+      organizationId,
+      projectId,
+      sessionId: c.sessionId,
+      serverName: c.serverName,
+      toolName: c.toolName,
+      model: c.model,
+      inputTokens: c.inputTokens,
+      outputTokens: c.outputTokens,
+      costUsd: calculateCost(c.model, c.inputTokens, c.outputTokens),
+      latencyMs: c.latencyMs,
+      success: c.success,
+      errorCode: c.errorCode,
+      calledAt: c.calledAt || new Date().toISOString(),
+    })
+  }
+
+  // Soft quota enforcement for FREE plan; otherwise just track usage
+  if (org.plan === 'FREE' && org.callsThisMonth + resolved.length > org.callsLimit) {
     res.status(429).json({
       error: 'Monthly quota exceeded',
-      used: user.callsThisMonth,
-      limit: user.callsLimit,
+      used: org.callsThisMonth,
+      limit: org.callsLimit,
       upgradeUrl: `${process.env.DASHBOARD_URL}/billing`,
     })
     return
   }
 
-  const payloads: ToolCallPayload[] = calls.map((c) => ({
-    userId,
-    projectId: c.projectId,
-    sessionId: c.sessionId,
-    serverName: c.serverName,
-    toolName: c.toolName,
-    model: c.model,
-    inputTokens: c.inputTokens,
-    outputTokens: c.outputTokens,
-    // Calculate cost server-side — never trust client
-    costUsd: calculateCost(c.model, c.inputTokens, c.outputTokens),
-    latencyMs: c.latencyMs,
-    success: c.success,
-    errorCode: c.errorCode,
-    calledAt: c.calledAt || new Date().toISOString(),
-  }))
-
-  await enqueueToolCalls(payloads)
-
-  // Return 202 — don't wait for DB write
-  res.status(202).json({ queued: payloads.length })
+  await enqueueToolCalls(resolved)
+  res.status(202).json({ queued: resolved.length })
 })
 
 export { router as ingestRouter }

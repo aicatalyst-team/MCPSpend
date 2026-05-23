@@ -1,30 +1,62 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { api, auth, ApiError } from '@/lib/api'
+
+interface RegisterResponse {
+  user: { id: string; email: string; name: string | null }
+  memberships: { role: string; organization: { id: string; name: string; slug: string; plan: string } }[]
+  activeOrganizationId: string | null
+  token: string
+}
 
 export default function Register() {
   const router = useRouter()
-  const [form, setForm] = useState({ email: '', password: '', name: '' })
+  const searchParams = useSearchParams()
+  const invitationToken = searchParams.get('invitation') || undefined
+
+  const [form, setForm] = useState({ email: '', password: '', name: '', organizationName: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [invitationInfo, setInvitationInfo] = useState<{ orgName: string; email: string } | null>(null)
+
+  useEffect(() => {
+    if (!invitationToken) return
+    api<{ organization: { name: string }; email: string; expired: boolean; accepted: boolean }>(
+      `/api/invitations/lookup/${encodeURIComponent(invitationToken)}`,
+    )
+      .then((data) => {
+        if (data.expired || data.accepted) {
+          setError(data.expired ? 'Invitation expired' : 'Invitation already accepted')
+          return
+        }
+        setInvitationInfo({ orgName: data.organization.name, email: data.email })
+        setForm((f) => ({ ...f, email: data.email }))
+      })
+      .catch(() => setError('Invitation invalid'))
+  }, [invitationToken])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
+      const data = await api<RegisterResponse>('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          name: form.name || undefined,
+          organizationName: invitationToken ? undefined : (form.organizationName || undefined),
+          invitationToken,
+        }),
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Registration failed'); return }
-      localStorage.setItem('token', data.token)
+      auth.setSession(data.token, data.activeOrganizationId)
       router.push('/dashboard')
-    } catch {
-      setError('Network error — please try again')
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message)
+      else setError('Network error — please try again')
     } finally {
       setLoading(false)
     }
@@ -34,22 +66,34 @@ export default function Register() {
     <main className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold">Create your account</h1>
-          <p className="text-gray-400 text-sm mt-1">Free — 50K tool calls/month included</p>
+          <h1 className="text-2xl font-bold">
+            {invitationInfo ? `Join ${invitationInfo.orgName}` : 'Create your account'}
+          </h1>
+          <p className="text-gray-400 text-sm mt-1">
+            {invitationInfo ? `Invited as ${invitationInfo.email}` : 'Free — 50K tool calls/month included'}
+          </p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
-            type="text" placeholder="Your name (optional)"
+            type="text" placeholder="Your name (optional)" autoComplete="name"
             value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-brand-500"
           />
           <input
-            type="email" placeholder="Email" required
+            type="email" placeholder="Email" required autoComplete="email"
             value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-brand-500"
+            disabled={!!invitationInfo}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-brand-500 disabled:opacity-60"
           />
+          {!invitationInfo && (
+            <input
+              type="text" placeholder="Workspace name (optional)" autoComplete="organization"
+              value={form.organizationName} onChange={e => setForm(f => ({ ...f, organizationName: e.target.value }))}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-brand-500"
+            />
+          )}
           <input
-            type="password" placeholder="Password (min 8 chars)" required minLength={8}
+            type="password" placeholder="Password (min 8 chars)" required minLength={8} autoComplete="new-password"
             value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-brand-500"
           />
@@ -58,7 +102,7 @@ export default function Register() {
             type="submit" disabled={loading}
             className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
           >
-            {loading ? 'Creating account…' : 'Create free account'}
+            {loading ? 'Creating account…' : invitationInfo ? 'Accept & create account' : 'Create free account'}
           </button>
         </form>
         <p className="text-center text-sm text-gray-400">

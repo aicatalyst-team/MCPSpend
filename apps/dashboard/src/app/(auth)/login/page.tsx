@@ -2,6 +2,14 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { api, auth, ApiError } from '@/lib/api'
+
+interface LoginResponse {
+  user: { id: string; email: string; name: string | null }
+  memberships: { role: string; organization: { id: string; name: string; slug: string; plan: string } }[]
+  activeOrganizationId: string | null
+  token: string
+}
 
 export default function Login() {
   const router = useRouter()
@@ -15,17 +23,15 @@ export default function Login() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+      const data = await api<LoginResponse>('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Login failed'); return }
-      localStorage.setItem('token', data.token)
+      auth.setSession(data.token, data.activeOrganizationId)
       router.push('/dashboard')
-    } catch {
-      setError('Network error — please try again')
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message)
+      else setError('Network error — please try again')
     } finally {
       setLoading(false)
     }
@@ -41,12 +47,12 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
             type="email" placeholder="Email" value={email}
-            onChange={e => setEmail(e.target.value)} required
+            onChange={e => setEmail(e.target.value)} required autoComplete="email"
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-brand-500"
           />
           <input
             type="password" placeholder="Password" value={password}
-            onChange={e => setPassword(e.target.value)} required
+            onChange={e => setPassword(e.target.value)} required autoComplete="current-password"
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-brand-500"
           />
           {error && <p className="text-red-400 text-sm">{error}</p>}

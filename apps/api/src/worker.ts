@@ -14,10 +14,9 @@ async function flushBatch() {
   const toProcess = batch.splice(0, batch.length)
 
   try {
-    // Batch INSERT
     await prisma.toolCall.createMany({
       data: toProcess.map((p) => ({
-        userId: p.userId,
+        organizationId: p.organizationId,
         projectId: p.projectId,
         sessionId: p.sessionId,
         serverName: p.serverName,
@@ -34,9 +33,8 @@ async function flushBatch() {
       skipDuplicates: true,
     })
 
-    // Update DailyStats (upsert per user/project/date/server/tool)
     const statsMap = new Map<string, {
-      userId: string; projectId: string; date: Date
+      organizationId: string; projectId: string; date: Date
       serverName: string; toolName: string
       callCount: number; inputTokens: number; outputTokens: number
       costUsd: number; errorCount: number
@@ -45,7 +43,7 @@ async function flushBatch() {
     for (const p of toProcess) {
       const date = new Date(p.calledAt)
       date.setUTCHours(0, 0, 0, 0)
-      const key = `${p.userId}::${p.projectId}::${date.toISOString()}::${p.serverName}::${p.toolName}`
+      const key = `${p.organizationId}::${p.projectId}::${date.toISOString()}::${p.serverName}::${p.toolName}`
 
       const existing = statsMap.get(key)
       if (existing) {
@@ -56,7 +54,7 @@ async function flushBatch() {
         if (!p.success) existing.errorCount++
       } else {
         statsMap.set(key, {
-          userId: p.userId,
+          organizationId: p.organizationId,
           projectId: p.projectId,
           date,
           serverName: p.serverName,
@@ -70,13 +68,12 @@ async function flushBatch() {
       }
     }
 
-    // Upsert all stats in parallel
     await Promise.all(
       Array.from(statsMap.values()).map((s) =>
         prisma.dailyStats.upsert({
           where: {
-            userId_projectId_date_serverName_toolName: {
-              userId: s.userId,
+            organizationId_projectId_date_serverName_toolName: {
+              organizationId: s.organizationId,
               projectId: s.projectId,
               date: s.date,
               serverName: s.serverName,
@@ -95,28 +92,25 @@ async function flushBatch() {
       )
     )
 
-    // Update monthly usage counters (for quota enforcement)
-    const userCallCounts = new Map<string, number>()
+    const orgCallCounts = new Map<string, number>()
     for (const p of toProcess) {
-      userCallCounts.set(p.userId, (userCallCounts.get(p.userId) || 0) + 1)
+      orgCallCounts.set(p.organizationId, (orgCallCounts.get(p.organizationId) || 0) + 1)
     }
     await Promise.all(
-      Array.from(userCallCounts.entries()).map(([userId, count]) =>
-        prisma.user.update({
-          where: { id: userId },
+      Array.from(orgCallCounts.entries()).map(([organizationId, count]) =>
+        prisma.organization.update({
+          where: { id: organizationId },
           data: { callsThisMonth: { increment: count } },
         })
       )
     )
 
-    // Invalidate dashboard caches for affected users
-    const affectedUsers = [...new Set(toProcess.map((p) => p.userId))]
-    await Promise.all(affectedUsers.map((uid) => cacheDelPattern(`stats:${uid}:*`)))
+    const affectedOrgs = [...new Set(toProcess.map((p) => p.organizationId))]
+    await Promise.all(affectedOrgs.map((oid) => cacheDelPattern(`stats:${oid}:*`)))
 
     console.log(`[Worker] Flushed ${toProcess.length} tool calls`)
   } catch (err) {
     console.error('[Worker] Batch flush failed:', err)
-    // Re-add to batch for retry
     batch.unshift(...toProcess)
   }
 }
@@ -139,7 +133,7 @@ const worker = new Worker<ToolCallPayload>(
   },
   {
     connection: queueConnection,
-    concurrency: 10,  // process 10 jobs in parallel per worker instance
+    concurrency: 10,
   }
 )
 
@@ -151,7 +145,6 @@ worker.on('ready', () => {
   console.log('[Worker] MCPSpend ingest worker ready')
 })
 
-// Graceful shutdown
 async function shutdown() {
   console.log('[Worker] Shutting down — flushing remaining batch...')
   if (flushTimer) clearTimeout(flushTimer)
