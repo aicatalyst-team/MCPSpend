@@ -29,6 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const [me, setMe] = useState<Me | null>(null)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     if (!auth.getToken()) { router.push('/login'); return }
@@ -38,6 +39,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (!auth.getOrganizationId() && data.memberships[0]) {
           auth.setOrganization(data.memberships[0].organization.id)
         }
+        // Probe /api/admin/overview — if it returns 200, surface the Admin tab.
+        api('/api/admin/overview')
+          .then(() => setIsAdmin(true))
+          .catch(() => setIsAdmin(false))
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) { auth.clear(); router.push('/login') }
@@ -98,6 +103,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Link>
             )
           })}
+          {isAdmin && (
+            <>
+              <div className="border-t border-white/5 my-2" />
+              <Link
+                href="/dashboard/admin"
+                onClick={onNavigate}
+                className={
+                  'block px-3 py-2 rounded-lg text-sm transition-colors ' +
+                  (pathname === '/dashboard/admin'
+                    ? 'bg-amber-500/15 text-amber-200 font-medium border border-amber-500/30'
+                    : 'text-amber-300/80 hover:text-amber-200 hover:bg-amber-500/5')
+                }
+              >
+                ★ Platform admin
+              </Link>
+            </>
+          )}
         </nav>
         <div className="p-3 border-t border-white/5">
           {me && (

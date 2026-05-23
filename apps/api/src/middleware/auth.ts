@@ -113,3 +113,24 @@ export function requireUserSession(req: AuthRequest, res: Response, next: NextFu
   }
   next()
 }
+
+// Platform-owner guard. SUPER_ADMIN_EMAILS env var is a comma-separated list of
+// emails allowed to call admin endpoints. Defaults to none — explicit opt-in.
+export async function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+  if (!req.userId) {
+    res.status(403).json({ error: 'User session required' })
+    return
+  }
+  const allowList = (process.env.SUPER_ADMIN_EMAILS || '')
+    .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+  if (allowList.length === 0) {
+    res.status(403).json({ error: 'Admin access not configured' })
+    return
+  }
+  const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { email: true } })
+  if (!user || !allowList.includes(user.email.toLowerCase())) {
+    res.status(403).json({ error: 'Not authorized' })
+    return
+  }
+  next()
+}
