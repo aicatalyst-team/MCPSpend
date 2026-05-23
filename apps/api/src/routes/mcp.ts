@@ -31,14 +31,32 @@ const router = Router()
 async function resolveApiKey(req: Request): Promise<string | null> {
   let token: string | undefined
 
+  // 1. Authorization header. We accept both "Bearer mcps_…" (our canonical
+  //    documented form) and a bare "mcps_…" (what Smithery emits when the
+  //    user configures the header without an explicit prefix).
   const header = req.headers.authorization
-  if (header && header.startsWith('Bearer ')) {
-    token = header.replace('Bearer ', '').trim()
+  if (header) {
+    const trimmed = header.trim()
+    if (trimmed.startsWith('Bearer ')) {
+      token = trimmed.replace('Bearer ', '').trim()
+    } else if (trimmed.startsWith('mcps_')) {
+      token = trimmed
+    }
   }
+
+  // 2. x-api-key header — common alternative in MCP-over-HTTP catalogs.
+  if (!token) {
+    const xkey = req.headers['x-api-key']
+    if (typeof xkey === 'string' && xkey.startsWith('mcps_')) token = xkey.trim()
+  }
+
+  // 3. Query parameter. Smithery's default UI uses ?apiKey=mcps_…
   if (!token) {
     const q = req.query.apiKey
     if (typeof q === 'string') token = q.trim()
   }
+
+  // 4. params._meta.apiKey inside the JSON-RPC envelope (some custom configs)
   if (!token) {
     const body = req.body as { params?: { _meta?: { apiKey?: string } } } | undefined
     const meta = body?.params?._meta?.apiKey
