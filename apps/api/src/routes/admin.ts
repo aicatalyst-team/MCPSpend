@@ -61,6 +61,52 @@ router.get('/overview', async (_req: AuthRequest, res) => {
   })
 })
 
+// GET /api/admin/compat — overview of schema drift telemetry per client
+//
+// Returns, for each (clientId, fingerprint) pair seen in the last 30 days:
+// count, last seen timestamp, distinct cliVersions, status breakdown. Lets us
+// spot a brand-new fingerprint for an existing client ("Windsurf 2.0 changed
+// from JSON to something else") within the next CLI invocation cycle.
+router.get('/compat', async (_req: AuthRequest, res) => {
+  const since = new Date()
+  since.setUTCDate(since.getUTCDate() - 30)
+
+  const grouped = await prisma.compatReport.groupBy({
+    by: ['clientId', 'fingerprint', 'status'],
+    where: { createdAt: { gte: since } },
+    _count: { _all: true },
+    _max: { createdAt: true, cliVersion: true },
+  })
+
+  const byClient = new Map<string, {
+    clientId: string
+    fingerprints: { fingerprint: string | null; status: string; count: number; lastSeen: Date | null; lastCli: string | null }[]
+  }>()
+  for (const g of grouped) {
+    const entry = byClient.get(g.clientId) || { clientId: g.clientId, fingerprints: [] }
+    entry.fingerprints.push({
+      fingerprint: g.fingerprint,
+      status: g.status,
+      count: g._count._all,
+      lastSeen: g._max.createdAt,
+      lastCli: g._max.cliVersion,
+    })
+    byClient.set(g.clientId, entry)
+  }
+
+  // Sort by descending count for prioritising attention.
+  const result = Array.from(byClient.values())
+  for (const r of result) {
+    r.fingerprints.sort((a, b) => b.count - a.count)
+  }
+  result.sort((a, b) =>
+    b.fingerprints.reduce((s, f) => s + f.count, 0) -
+    a.fingerprints.reduce((s, f) => s + f.count, 0)
+  )
+
+  res.json({ since: since.toISOString(), clients: result })
+})
+
 // GET /api/admin/orgs — full list with pagination
 router.get('/orgs', async (req: AuthRequest, res) => {
   const limit = Math.min(parseInt(req.query.limit as string) || 50, 200)

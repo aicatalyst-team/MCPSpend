@@ -12,7 +12,12 @@ on:
   push:
     branches: [main]
     paths:
+      # Publish on extension changes OR proxy changes, since the extension
+      # bundles the proxy via esbuild — any proxy update should reach users
+      # through a fresh .vsix. The job has an "already published" guard, so a
+      # proxy commit that doesn't bump the extension version is a no-op.
       - 'packages/vscode-extension/**'
+      - 'packages/proxy/**'
 
 jobs:
   publish:
@@ -49,6 +54,20 @@ jobs:
           v=$(node -p "require('./package.json').version")
           echo "version=$v" >> "$GITHUB_OUTPUT"
 
+      # Skip the publish (but still build + upload artifact) when this exact
+      # version is already on Open VSX. Otherwise vsce/ovsx would fail with
+      # "already exists" and we'd see workflow noise on every proxy commit
+      # that didn't bump the extension.
+      - name: Check if already on Open VSX
+        id: ovsx_check
+        run: |
+          if curl -s -o /dev/null -w "%{http_code}" "https://open-vsx.org/api/mcpspend/mcpspend-vscode/${{ steps.ver.outputs.version }}" | grep -q '^200$'; then
+            echo "skip_ovsx=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Extension ${{ steps.ver.outputs.version }} already on Open VSX — skipping ovsx publish"
+          else
+            echo "skip_ovsx=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Package .vsix
         working-directory: packages/vscode-extension
         run: pnpm run package
@@ -72,7 +91,7 @@ jobs:
           fi
 
       - name: Publish to Open VSX (Cursor + Windsurf use this)
-        if: github.event_name == 'push' || inputs.target == 'both' || inputs.target == 'ovsx'
+        if: steps.ovsx_check.outputs.skip_ovsx != 'true' && (github.event_name == 'push' || inputs.target == 'both' || inputs.target == 'ovsx')
         working-directory: packages/vscode-extension
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}

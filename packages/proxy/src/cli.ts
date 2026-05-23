@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { loadConfig, saveConfig } from './config.js'
 import { runProxy } from './proxy.js'
-import { runInit, formatReport, runDoctor, formatDoctor } from './init.js'
+import { runInit, formatReport, runDoctor, formatDoctor, reportCompatFromInit } from './init.js'
 import { buildSnippet, formatSnippet, SnippetClient } from './snippet.js'
+import { runHttpBridge } from './http-bridge.js'
 
-const VERSION = '0.4.0'
+const VERSION = '0.5.0'
 
 const HELP = `mcpspend — observability proxy for MCP servers (v${VERSION})
 
@@ -12,6 +13,8 @@ USAGE
   mcpspend init [options]               Auto-detect MCP clients and wrap their servers
   mcpspend doctor                       Diagnose setup (clients, API key, endpoint)
   mcpspend wrap [options] -- <cmd>...   Manually wrap a single MCP server invocation
+  mcpspend wrap-http [options]          Wrap a REMOTE HTTP MCP server (Figma, etc.)
+                                        Speaks stdio to the client, HTTP to the server.
   mcpspend snippet [options] -- <cmd>...
                                         Print a paste-ready JSON snippet for a
                                         specific client (Windsurf protobuf, custom).
@@ -36,6 +39,15 @@ WRAP OPTIONS
   --agent <name>           Agent name
   --model <name>           Model name for cost attribution (default: mcp-stdio)
   --disable                Run in passthrough mode (no tracking)
+
+WRAP-HTTP OPTIONS
+  --url <url>              Required. Remote MCP endpoint (POSTs JSON-RPC there).
+  --key <value>            API key (overrides config + MCPSPEND_API_KEY)
+  --endpoint <url>         MCPSpend API endpoint (NOT the remote MCP URL)
+  --project <id>           Attribute calls to this project
+  --agent <name>           Agent name reported in dashboards
+  --model <name>           Model name for cost attribution (default: mcp-http)
+  --auth <header>          Pass-through Authorization header to the remote MCP
 
 SNIPPET OPTIONS
   --client <id>            One of: claude-desktop, cursor, windsurf, vscode,
@@ -65,6 +77,10 @@ EXAMPLES
   # Get a copy-paste snippet for Windsurf (which stores config as protobuf)
   mcpspend snippet --client windsurf --name playwright -- npx -y @playwright/mcp@latest
 
+  # Wrap a REMOTE HTTP MCP server (figma-remote etc.)
+  mcpspend wrap-http --url https://mcp.figma.com --key mcps_live_xxx \
+    --auth "Bearer FIGMA_TOKEN"
+
 Environment variables: MCPSPEND_API_KEY, MCPSPEND_ENDPOINT, MCPSPEND_PROJECT_ID, MCPSPEND_AGENT_NAME, MCPSPEND_DISABLED=1, MCPSPEND_NO_TELEMETRY=1
 Config file: ~/.mcpspend/config.json
 `
@@ -88,8 +104,18 @@ interface SnippetArgs {
   style: 'npx' | 'bin'
 }
 
+interface HttpArgs {
+  url?: string
+  apiKey?: string
+  endpoint?: string
+  projectId?: string
+  agentName?: string
+  model?: string
+  auth?: string
+}
+
 interface ParsedArgs {
-  command: 'wrap' | 'config' | 'init' | 'doctor' | 'snippet' | 'help' | 'version'
+  command: 'wrap' | 'wrap-http' | 'config' | 'init' | 'doctor' | 'snippet' | 'help' | 'version'
   configAction?: 'set' | 'show'
   configKey?: string
   configValue?: string
@@ -103,6 +129,7 @@ interface ParsedArgs {
   }
   initOpts: InitArgs
   snippetOpts: SnippetArgs
+  httpOpts: HttpArgs
   childCommand?: string
   childArgs: string[]
 }
@@ -113,6 +140,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     wrapOpts: {},
     initOpts: { clients: [], dryRun: false, unwrap: false },
     snippetOpts: { client: 'generic', style: 'npx' },
+    httpOpts: {},
     childArgs: [],
   }
 
@@ -151,6 +179,32 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (cmd === 'doctor') {
     result.command = 'doctor'
+    return result
+  }
+
+  if (cmd === 'wrap-http') {
+    result.command = 'wrap-http'
+    let i = 1
+    while (i < argv.length) {
+      const a = argv[i]
+      const next = argv[i + 1]
+      switch (a) {
+        case '--url':       result.httpOpts.url = next; i += 2; break
+        case '--key':       result.httpOpts.apiKey = next; i += 2; break
+        case '--endpoint':  result.httpOpts.endpoint = next; i += 2; break
+        case '--project':   result.httpOpts.projectId = next; i += 2; break
+        case '--agent':     result.httpOpts.agentName = next; i += 2; break
+        case '--model':     result.httpOpts.model = next; i += 2; break
+        case '--auth':      result.httpOpts.auth = next; i += 2; break
+        default:
+          process.stderr.write(`mcpspend: unknown option ${a}\n`)
+          process.exit(2)
+      }
+    }
+    if (!result.httpOpts.url) {
+      process.stderr.write('mcpspend: wrap-http requires --url <https://...>\n')
+      process.exit(2)
+    }
     return result
   }
 
@@ -262,6 +316,10 @@ async function main() {
       unwrap: parsed.initOpts.unwrap,
     })
     process.stdout.write(formatReport(report, parsed.initOpts.unwrap) + '\n')
+    // Fire-and-forget anonymous compat report. Tells us when a client's schema
+    // changes so we can ship a fix BEFORE users notice. Opt out via
+    // MCPSPEND_NO_TELEMETRY=1. We swallow errors — telemetry is never blocking.
+    void reportCompatFromInit(VERSION, report)
     if (report.clients.some((c) => c.status === 'error')) process.exit(1)
     return
   }
@@ -319,6 +377,22 @@ async function main() {
       args: parsed.childArgs,
       config: cfg,
       model: parsed.wrapOpts.model || process.env.MCPSPEND_MODEL || 'mcp-stdio',
+    })
+    process.exit(code)
+  }
+
+  if (parsed.command === 'wrap-http') {
+    const cfg = loadConfig({
+      apiKey: parsed.httpOpts.apiKey,
+      endpoint: parsed.httpOpts.endpoint,
+      projectId: parsed.httpOpts.projectId,
+      agentName: parsed.httpOpts.agentName,
+    })
+    const code = await runHttpBridge({
+      url: parsed.httpOpts.url!,
+      config: cfg,
+      model: parsed.httpOpts.model || process.env.MCPSPEND_MODEL || 'mcp-http',
+      remoteAuthHeader: parsed.httpOpts.auth,
     })
     process.exit(code)
   }

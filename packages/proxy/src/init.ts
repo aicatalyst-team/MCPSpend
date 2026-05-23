@@ -1,3 +1,4 @@
+import { platform } from 'node:os'
 import {
   CLIENTS,
   ClientDefinition,
@@ -10,6 +11,7 @@ import {
   WrapResult,
 } from './clients.js'
 import { loadConfig, saveConfig } from './config.js'
+import { sendCompatReport, fingerprintConfig, CompatClientReport } from './telemetry.js'
 
 export interface InitOptions {
   apiKey?: string
@@ -152,6 +154,38 @@ export function runInit(opts: InitOptions = {}): InitReport {
     clientsPatched: clientReports.filter((r) => r.status === 'patched').length,
     clients: clientReports,
   }
+}
+
+/**
+ * Fire a fire-and-forget anonymous compat report. Caller decides when to call —
+ * we don't run it inside runInit() to keep that function pure and testable.
+ * Opt out: MCPSPEND_NO_TELEMETRY=1.
+ */
+export async function reportCompatFromInit(cliVersion: string, init: InitReport): Promise<void> {
+  const reports: CompatClientReport[] = init.clients.map((r) => {
+    let fp: string | undefined
+    let format: 'json' | 'missing' | undefined
+    try {
+      const parsed = readClientConfig(r.path)
+      fp = fingerprintConfig(parsed)
+      format = 'json'
+    } catch {
+      format = 'missing'
+    }
+    return {
+      id: r.client,
+      status: r.bootstrapped ? 'bootstrapped' : r.status,
+      configFormat: format,
+      topLevelKeysFingerprint: fp,
+      serverCount: r.servers.length,
+      wrappedCount: r.servers.filter((s) => s.status === 'wrapped' || s.status === 'already-wrapped').length,
+    }
+  })
+  await sendCompatReport({
+    cliVersion,
+    platform: platform(),
+    reports,
+  })
 }
 
 export function formatReport(report: InitReport, unwrap = false): string {

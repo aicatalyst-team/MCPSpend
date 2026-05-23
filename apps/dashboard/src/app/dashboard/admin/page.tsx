@@ -27,6 +27,14 @@ interface AdminOrg {
   _count: { members: number; projects: number; apiKeys: number }
 }
 
+interface CompatOverview {
+  since: string
+  clients: {
+    clientId: string
+    fingerprints: { fingerprint: string | null; status: string; count: number; lastSeen: string | null; lastCli: string | null }[]
+  }[]
+}
+
 const PLAN_COLORS: Record<string, string> = {
   FREE: 'text-gray-400 bg-white/5',
   PRO: 'text-brand-300 bg-brand-500/10',
@@ -38,6 +46,7 @@ export default function AdminPage() {
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [orgs, setOrgs] = useState<AdminOrg[] | null>(null)
   const [orgTotal, setOrgTotal] = useState(0)
+  const [compat, setCompat] = useState<CompatOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -67,9 +76,19 @@ export default function AdminPage() {
     }
   }
 
+  async function loadCompat() {
+    try {
+      const data = await api<CompatOverview>('/api/admin/compat')
+      setCompat(data)
+    } catch (err) {
+      if (err instanceof ApiError && err.status !== 403) setError(err.message)
+    }
+  }
+
   useEffect(() => {
     void loadOverview()
     void loadOrgs()
+    void loadCompat()
   }, [])
 
   if (loading) return (
@@ -160,6 +179,58 @@ export default function AdminPage() {
           </table>
         </div>
       </div>
+
+      {/* Client compatibility (schema drift detection) */}
+      {compat && (
+        <div className="bg-gray-900 border border-white/5 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-300">
+              Client compatibility · last 30 days
+            </h2>
+            <span className="text-xs text-gray-500">since {new Date(compat.since).toLocaleDateString()}</span>
+          </div>
+          {compat.clients.length === 0 ? (
+            <p className="text-xs text-gray-500">
+              No telemetry yet. CLI sends anonymous fingerprints once per `mcpspend init` run.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {compat.clients.map((c) => (
+                <div key={c.clientId} className="bg-gray-950 border border-white/5 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-white">{c.clientId}</span>
+                    <span className="text-xs text-gray-500">
+                      {c.fingerprints.length} distinct fingerprint{c.fingerprints.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-gray-500">
+                        <th className="py-1 pr-3">Fingerprint</th>
+                        <th className="py-1 pr-3">Status</th>
+                        <th className="py-1 pr-3">Count</th>
+                        <th className="py-1 pr-3">Last CLI</th>
+                        <th className="py-1 pr-3">Last seen</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {c.fingerprints.map((f, i) => (
+                        <tr key={i} className="text-gray-300">
+                          <td className="py-1 pr-3 font-mono">{f.fingerprint || '—'}</td>
+                          <td className="py-1 pr-3">{f.status}</td>
+                          <td className="py-1 pr-3">{f.count}</td>
+                          <td className="py-1 pr-3 text-gray-400">{f.lastCli || '?'}</td>
+                          <td className="py-1 pr-3 text-gray-500">{f.lastSeen ? new Date(f.lastSeen).toLocaleString() : '?'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* All orgs with search */}
       <div className="bg-gray-900 border border-white/5 rounded-xl p-5">

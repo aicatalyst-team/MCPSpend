@@ -1,28 +1,26 @@
 {
-  "name": "@mcpspend/proxy",
-  "version": "0.5.0",
-  "description": "Transparent proxy CLI for MCP servers — tracks tool calls, latency, and cost via MCPSpend.",
+  "name": "@mcpspend/mcp-server",
+  "version": "0.1.0",
+  "description": "Query your MCPSpend usage from any MCP client. Exposes get_today_cost, list_top_tools, recent_sessions, and budget tools.",
   "license": "MIT",
   "homepage": "https://mcpspend.com",
   "bugs": "mailto:support@mcpspend.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/andreisirbu91-lab/MCPSpend.git",
-    "directory": "packages/proxy"
+    "directory": "packages/mcp-server"
   },
   "keywords": [
     "mcp",
     "model-context-protocol",
     "observability",
     "cost-tracking",
-    "ai",
-    "proxy"
+    "ai"
   ],
   "bin": {
-    "mcpspend": "dist/cli.js"
+    "mcpspend-mcp-server": "dist/index.js"
   },
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "files": [
     "dist",
     "README.md"
@@ -31,17 +29,15 @@
     "node": ">=18"
   },
   "dependencies": {
-    "cross-spawn": "^7.0.6"
+    "@modelcontextprotocol/sdk": "^1.0.4"
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsx src/cli.ts",
-    "test": "node --test --import tsx src/clients.test.ts src/proxy.test.ts",
+    "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@types/cross-spawn": "^6.0.6",
     "@types/node": "^22.10.10",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"

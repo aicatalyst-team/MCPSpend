@@ -51,6 +51,28 @@ model Organization {
   auditLogs    AuditLog[]
 }
 
+// Compatibility report sent anonymously by the proxy CLI on init/doctor.
+// Lets us spot when a client (Windsurf, Cursor, etc.) changes its config schema
+// and our auto-discovery silently breaks. No PII — just a fingerprint of the
+// top-level config keys we observed plus the CLI version that ran.
+model CompatReport {
+  id           String   @id @default(cuid())
+  cliVersion   String
+  platform     String   // win32 / darwin / linux
+  clientId     String   // claude-desktop / cursor / windsurf / vscode / claude-code
+  status       String   // patched / no-changes / error / dry-run / bootstrapped / not-detected
+  configFormat String?  // json / protobuf / binary-unknown / missing
+  fingerprint  String?  // sha256(sorted top-level keys), 16 chars
+  serverCount  Int?
+  wrappedCount Int?
+  errorSummary String?
+  ipHash       String?  // sha256(ip) — for rate limiting / dedup, not user tracking
+  createdAt    DateTime @default(now())
+
+  @@index([clientId, fingerprint, createdAt])
+  @@index([clientId, createdAt])
+}
+
 // Append-only record of sensitive actions: subscription changes, member kicks,
 // API key revocations, settings edits. Shown to Enterprise customers + queried
 // by support. Retention: forever for Enterprise, follows ToolCall retention

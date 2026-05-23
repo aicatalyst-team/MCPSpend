@@ -1,0 +1,64 @@
+name: Publish @mcpspend/mcp-server
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/mcp-server/**'
+
+jobs:
+  publish:
+    name: Build & publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Upgrade npm to >=11.5
+        run: |
+          npm install -g npm@latest
+          npm --version
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Read version
+        id: ver
+        working-directory: packages/mcp-server
+        run: |
+          v=$(node -p "require('./package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Check if already published
+        id: check
+        working-directory: packages/mcp-server
+        run: |
+          if npm view "@mcpspend/mcp-server@${{ steps.ver.outputs.version }}" version 2>/dev/null; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/mcp-server
+        run: pnpm run build
+
+      - name: Make bin executable
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/mcp-server
+        run: |
+          chmod +x dist/index.js
+          head -1 dist/index.js
+
+      - name: Publish to npm (OIDC Trusted Publisher)
+        if: steps.check.outputs.skip != 'true'
+        working-directory: packages/mcp-server
+        run: npm publish --access public
