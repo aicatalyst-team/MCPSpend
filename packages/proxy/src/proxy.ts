@@ -65,9 +65,14 @@ export async function runProxy(opts: {
     process.stderr.write('[mcpspend] no API key configured — running in passthrough mode (no tracking)\n')
   }
 
+  // On Windows, Node's spawn() can't find `.cmd`/`.bat` shims (npx, etc.)
+  // without going through cmd.exe. Use shell: true to let the OS resolve the
+  // command — same path most Node-based CLIs take.
+  const isWindows = process.platform === 'win32'
   const child = spawn(command, args, {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: process.env,
+    shell: isWindows,
   })
 
   const pending = new Map<number | string, PendingCall>()
