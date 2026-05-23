@@ -22,28 +22,27 @@ router.get('/overview', requireOrg, async (req: AuthRequest, res) => {
   since.setUTCHours(0, 0, 0, 0)
 
   const [daily, totals, topTools, topServers] = await Promise.all([
+    // Daily totals: aggregate all per-tool rows by date (no special "total" row needed)
     prisma.dailyStats.groupBy({
       by: ['date'],
       where: {
         organizationId,
         ...(projectId ? { projectId } : {}),
         date: { gte: since },
-        serverName: null,
-        toolName: null,
       },
       _sum: { callCount: true, costUsd: true, inputTokens: true, outputTokens: true },
       orderBy: { date: 'asc' },
     }),
+    // Grand totals across the whole window
     prisma.dailyStats.aggregate({
       where: {
         organizationId,
         ...(projectId ? { projectId } : {}),
         date: { gte: since },
-        serverName: null,
-        toolName: null,
       },
       _sum: { callCount: true, costUsd: true, inputTokens: true, outputTokens: true, errorCount: true },
     }),
+    // Top tools by cost
     prisma.dailyStats.groupBy({
       by: ['toolName', 'serverName'],
       where: {
@@ -56,6 +55,7 @@ router.get('/overview', requireOrg, async (req: AuthRequest, res) => {
       orderBy: { _sum: { costUsd: 'desc' } },
       take: 10,
     }),
+    // Top servers by cost: collapse per-tool rows by serverName
     prisma.dailyStats.groupBy({
       by: ['serverName'],
       where: {
@@ -63,7 +63,6 @@ router.get('/overview', requireOrg, async (req: AuthRequest, res) => {
         ...(projectId ? { projectId } : {}),
         date: { gte: since },
         serverName: { not: null },
-        toolName: null,
       },
       _sum: { callCount: true, costUsd: true },
       orderBy: { _sum: { costUsd: 'desc' } },
