@@ -3,7 +3,7 @@ import { loadConfig, saveConfig } from './config.js'
 import { runProxy } from './proxy.js'
 import { runInit, formatReport, runDoctor, formatDoctor } from './init.js'
 
-const VERSION = '0.3.0'
+const VERSION = '0.3.1'
 
 const HELP = `mcpspend — observability proxy for MCP servers (v${VERSION})
 

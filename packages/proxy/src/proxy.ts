@@ -27,27 +27,85 @@ function estimateTokens(payload: unknown): number {
   return Math.max(1, Math.ceil(s.length / 4))
 }
 
+// Strip an npm package spec down to its identifying core. We do this in stages
+// so each rule is auditable and reviewers can extend it without unwinding a
+// monster regex.
+//
+//   @playwright/mcp@latest             → playwright
+//   @modelcontextprotocol/server-fs    → fs
+//   @owner/foo-mcp                     → foo
+//   github-mcp-server                  → github
+//   mcp-server-fetch                   → fetch
+//   firecrawl-mcp                      → firecrawl
+function stripMcpAffixes(s: string): string {
+  let t = s
+  t = t.replace(/^mcp-server-/i, '').replace(/-mcp-server$/i, '')
+  t = t.replace(/^server-/i, '').replace(/-server$/i, '')
+  t = t.replace(/^mcp-/i, '').replace(/-mcp$/i, '')
+  return t.toLowerCase().trim()
+}
+
+function isDegenerate(t: string): boolean {
+  return !t || t === 'mcp' || t === 'server' || t === 'latest'
+}
+
+function normaliseServerToken(raw: string): string | null {
+  let t = raw
+  // Drop everything after the version separator, but only when it's a version,
+  // not a scope marker. `@playwright/mcp@latest` → `@playwright/mcp`.
+  const lastAt = t.lastIndexOf('@')
+  if (lastAt > 0) t = t.slice(0, lastAt)
+
+  // If this is a scoped npm spec like `@playwright/mcp`, try the unscoped
+  // name first; if that strips down to something generic ("mcp", "server"),
+  // fall back to the scope itself. That gives "playwright" instead of "mcp"
+  // for `@playwright/mcp@latest`, while still preferring the specific name
+  // for `@modelcontextprotocol/server-filesystem` → "filesystem".
+  let scope: string | null = null
+  if (t.startsWith('@')) {
+    const slash = t.indexOf('/')
+    if (slash > 0) {
+      scope = t.slice(1, slash).toLowerCase()
+      t = t.slice(slash + 1)
+    }
+  }
+
+  // Path basename when this is a script path.
+  t = t.split(/[\\/]/).pop() || t
+  t = t.replace(/\.(js|cjs|mjs|ts|tsx|py)$/i, '')
+
+  let name = stripMcpAffixes(t)
+  if (isDegenerate(name) && scope) {
+    name = stripMcpAffixes(scope)
+  }
+
+  if (isDegenerate(name)) return null
+  return name
+}
+
+// Exported only for tests — see proxy.test.ts. Kept off the public surface to
+// avoid implying it's a stable API.
+export const __testExtractServerName = (command: string, args: string[]) => extractServerName(command, args)
+
 function extractServerName(command: string, args: readonly string[]): string {
-  // Best-effort: pick the most descriptive token from the command line.
-  // Examples:
-  //   npx @modelcontextprotocol/server-filesystem /path  →  "filesystem"
-  //   node ./my-mcp-server.js                            →  "my-mcp-server"
-  //   /usr/bin/uvx mcp-server-fetch                       →  "mcp-server-fetch"
-  const tokens = [command, ...args]
+  // Skip well-known shims that never carry the server identity themselves.
+  const skipPrefix = new Set(['npx', 'npx.cmd', 'npx.exe', 'uvx', 'pnpx', 'bunx', 'pipx', 'node', 'bun', 'deno', 'python', 'python3'])
+
+  const tokens = [command, ...args].filter((t) => {
+    if (!t) return false
+    if (t.startsWith('-')) return false // flags
+    const base = t.split(/[\\/]/).pop()?.toLowerCase() || ''
+    return !skipPrefix.has(base) && !skipPrefix.has(t.toLowerCase())
+  })
+
   for (const t of tokens) {
-    const m = t.match(/(?:server-|mcp-server-)([a-z0-9-]+)/i)
-    if (m) return m[1]
+    const name = normaliseServerToken(t)
+    if (name) return name
   }
-  for (const t of tokens) {
-    const m = t.match(/([a-z0-9-]+)-mcp-server/i)
-    if (m) return m[1]
-  }
-  // Fallback: last non-flag arg's basename without extension
-  const lastArg = [...tokens].reverse().find((t) => !t.startsWith('-'))
-  if (lastArg) {
-    return lastArg.split(/[\\/]/).pop()!.replace(/\.[^.]+$/, '')
-  }
-  return 'mcp'
+
+  // Last resort — last raw token basename.
+  const lastArg = [...args].reverse().find((t) => !t.startsWith('-')) || command
+  return (lastArg.split(/[\\/]/).pop() || lastArg).replace(/\.[^.]+$/, '') || 'mcp'
 }
 
 export async function runProxy(opts: {

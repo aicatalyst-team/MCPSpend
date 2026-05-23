@@ -1,6 +1,6 @@
 {
   "name": "@mcpspend/proxy",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Transparent proxy CLI for MCP servers — tracks tool calls, latency, and cost via MCPSpend.",
   "license": "MIT",
   "homepage": "https://mcpspend.com",
@@ -36,7 +36,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/cli.ts",
-    "test": "node --test --import tsx src/clients.test.ts",
+    "test": "node --test --import tsx src/clients.test.ts src/proxy.test.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
