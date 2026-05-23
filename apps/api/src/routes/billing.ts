@@ -73,6 +73,16 @@ publicRouter.post('/start', async (req, res) => {
       metadata: { project: 'mcpspend', flow: 'signup', plan: parsed.data.plan, cadence: parsed.data.cadence },
     },
     allow_promotion_codes: true,
+    // Surface our Terms + Privacy below the pay button on the Stripe-hosted
+    // page. Stripe's `consent_collection.terms_of_service: required` requires
+    // an account-level Terms URL — but our Stripe account is shared with
+    // other businesses, so we can't pin one there. `custom_text` is the
+    // per-session escape hatch.
+    custom_text: {
+      submit: {
+        message: 'By subscribing you agree to the [Terms of Service](https://mcpspend.com/terms) and [Privacy Policy](https://mcpspend.com/privacy).',
+      },
+    },
   })
 
   res.json({ url: session.url, sessionId: session.id })
@@ -162,6 +172,11 @@ router.post('/checkout', requireOrg, requireUserSession, requireRole('OWNER', 'A
       metadata: { project: 'mcpspend', organizationId: org.id, plan: parsed.data.plan, cadence: parsed.data.cadence },
     },
     allow_promotion_codes: true,
+    custom_text: {
+      submit: {
+        message: 'By subscribing you agree to the [Terms of Service](https://mcpspend.com/terms) and [Privacy Policy](https://mcpspend.com/privacy).',
+      },
+    },
   })
 
   res.json({ url: session.url })

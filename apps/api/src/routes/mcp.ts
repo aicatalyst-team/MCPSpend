@@ -294,4 +294,24 @@ router.get('/', (_req, res) => {
   })
 })
 
+// RFC 9728 — OAuth 2.0 Protected Resource Metadata.
+// Smithery (and any MCP HTTP client following the 2025-06-18 spec) probes
+// /.well-known/oauth-protected-resource before sending the first JSON-RPC
+// request. If we just 404 with HTML, they think the URL is malformed.
+// We answer with a minimal-but-valid document that says:
+//   - the resource is this very endpoint
+//   - no authorization_servers (we don't run an OAuth flow)
+//   - bearer_methods_supported lists "header" so the client knows to send
+//     `Authorization: Bearer <api-key>` directly
+// This is enough for Smithery to accept the server and stop probing.
+router.get('/.well-known/oauth-protected-resource', (_req, res) => {
+  res.json({
+    resource: 'https://api.mcpspend.com/api/mcp',
+    authorization_servers: [],
+    bearer_methods_supported: ['header'],
+    scopes_supported: [],
+    resource_documentation: 'https://mcpspend.com/docs/mcp-http',
+  })
+})
+
 export { router as mcpRouter }
