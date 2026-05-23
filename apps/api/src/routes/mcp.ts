@@ -19,16 +19,33 @@ import { hashApiKey } from '../lib/apiKey'
 
 const router = Router()
 
-// Resolve `Authorization: Bearer <key>` into an organizationId on every POST.
-// We do this here (not via the global authMiddleware) because the MCP handshake
-// — initialize + tools/list — must answer with `200` even without an API key,
-// so that Smithery/Claude/Cursor can discover the server. Only `tools/call`
-// requires a real key.
-async function resolveBearer(req: Request): Promise<string | null> {
+// Resolve an MCPSpend API key from the request into an organizationId.
+// We accept three locations because different MCP catalogs pass credentials
+// differently:
+//   1. `Authorization: Bearer mcps_…` — standard, what our own clients use
+//   2. `?apiKey=mcps_…` query parameter — Smithery's default for HTTP servers
+//   3. JSON-RPC params._meta.apiKey — some Smithery custom configs use this
+// We do this in the router (not the global authMiddleware) because the MCP
+// handshake — initialize, tools/list — must succeed without credentials so
+// catalogs can discover the server before asking the user for their key.
+async function resolveApiKey(req: Request): Promise<string | null> {
+  let token: string | undefined
+
   const header = req.headers.authorization
-  if (!header || !header.startsWith('Bearer ')) return null
-  const token = header.replace('Bearer ', '').trim()
-  if (!token.startsWith('mcps_')) return null
+  if (header && header.startsWith('Bearer ')) {
+    token = header.replace('Bearer ', '').trim()
+  }
+  if (!token) {
+    const q = req.query.apiKey
+    if (typeof q === 'string') token = q.trim()
+  }
+  if (!token) {
+    const body = req.body as { params?: { _meta?: { apiKey?: string } } } | undefined
+    const meta = body?.params?._meta?.apiKey
+    if (typeof meta === 'string') token = meta.trim()
+  }
+
+  if (!token || !token.startsWith('mcps_')) return null
   const keyHash = hashApiKey(token)
   const apiKey = await prisma.apiKey.findUnique({
     where: { keyHash },
@@ -230,7 +247,7 @@ router.post('/', async (req, res) => {
   // Resolve auth lazily — we only need it for tools/call. Other methods are
   // part of the public handshake and must work without a key so MCP clients
   // can discover the server.
-  const organizationId = await resolveBearer(req)
+  const organizationId = await resolveApiKey(req)
   const rpc = req.body as RpcRequest
 
   // Bare-minimum JSON-RPC validation.
