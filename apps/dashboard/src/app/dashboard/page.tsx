@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { api, ApiError, auth } from '@/lib/api'
 import { useRouter } from 'next/navigation'
+import { Onboarding } from '@/components/dashboard/Onboarding'
 
 interface Overview {
   daily: { date: string; _sum: { costUsd: number | null; callCount: number | null } }[]
@@ -33,15 +34,22 @@ export default function DashboardPage() {
 
   const totals = overview?.totals
   const daily = overview?.daily ?? []
+  const callCount = totals?.callCount ?? 0
+  const hasData = callCount > 0
+
+  // No real data yet → show the onboarding stepper instead of an empty dashboard.
+  if (!hasData) {
+    return <Onboarding />
+  }
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Total cost (30d)', value: `$${(totals?.costUsd ?? 0).toFixed(4)}` },
-          { label: 'Tool calls (30d)', value: (totals?.callCount ?? 0).toLocaleString() },
+          { label: 'Tool calls (30d)', value: callCount.toLocaleString() },
           { label: 'Input tokens', value: ((totals?.inputTokens ?? 0) / 1000).toFixed(1) + 'K' },
-          { label: 'Error rate', value: totals?.callCount ? `${(((totals.errorCount ?? 0) / totals.callCount) * 100).toFixed(1)}%` : '—' },
+          { label: 'Error rate', value: callCount ? `${(((totals?.errorCount ?? 0) / callCount) * 100).toFixed(1)}%` : '—' },
         ].map(({ label, value }) => (
           <div key={label} className="bg-gray-900 border border-white/5 rounded-xl p-4">
             <p className="text-xs text-gray-400">{label}</p>
@@ -53,14 +61,7 @@ export default function DashboardPage() {
       <div className="bg-gray-900 border border-white/5 rounded-xl p-4">
         <h2 className="text-sm font-semibold text-gray-300 mb-4">Daily cost — last 30 days</h2>
         {daily.length === 0
-          ? (
-            <div className="text-gray-500 text-sm py-12 text-center space-y-3">
-              <p>No data yet — install the proxy and route some MCP calls.</p>
-              <a href="/dashboard/keys" className="inline-block text-brand-400 hover:text-brand-300 text-xs">
-                Create an API key →
-              </a>
-            </div>
-          )
+          ? <p className="text-gray-500 text-sm py-8 text-center">No daily totals yet — wait a few more minutes for the worker to aggregate.</p>
           : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={daily}>
@@ -89,7 +90,6 @@ export default function DashboardPage() {
                 <span className="text-brand-400 font-mono ml-2">${(t._sum.costUsd ?? 0).toFixed(5)}</span>
               </div>
             ))}
-            {(overview?.topTools ?? []).length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
           </div>
         </div>
         <div className="bg-gray-900 border border-white/5 rounded-xl p-4">
@@ -101,20 +101,8 @@ export default function DashboardPage() {
                 <span className="text-brand-400 font-mono ml-2">${(s._sum.costUsd ?? 0).toFixed(5)}</span>
               </div>
             ))}
-            {(overview?.topServers ?? []).length === 0 && <p className="text-gray-500 text-sm">No data yet</p>}
           </div>
         </div>
-      </div>
-
-      <div className="bg-gray-900 border border-white/5 rounded-xl p-4">
-        <h2 className="text-sm font-semibold text-gray-300 mb-2">Install the proxy</h2>
-        <p className="text-xs text-gray-500 mb-3">
-          Create an API key, then wrap your MCP server:
-        </p>
-        <pre className="bg-gray-950 rounded-lg p-3 text-xs text-brand-400 overflow-x-auto">
-{`npm install -g @mcpspend/proxy
-mcpspend wrap --key mcps_live_... -- npx @modelcontextprotocol/server-filesystem /path`}
-        </pre>
       </div>
     </div>
   )

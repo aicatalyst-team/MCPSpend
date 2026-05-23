@@ -17,6 +17,7 @@ interface Me {
 
 const navItems = [
   { href: '/dashboard', label: 'Overview' },
+  { href: '/dashboard/projects', label: 'Projects' },
   { href: '/dashboard/keys', label: 'API keys' },
   { href: '/dashboard/members', label: 'Members' },
   { href: '/dashboard/invitations', label: 'Invitations' },
