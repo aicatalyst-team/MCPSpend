@@ -164,6 +164,66 @@ router.post('/login', async (req, res) => {
   })
 })
 
+// POST /api/auth/complete-setup
+// Magic-link flow: after a Stripe-first signup, the user clicks the link in
+// their welcome email. This endpoint validates the setup token, sets their
+// password, marks email as verified, and returns a session JWT.
+router.post('/complete-setup', async (req, res) => {
+  const schema = z.object({
+    token: z.string().min(10),
+    password: z.string().min(8),
+  })
+  const parsed = schema.safeParse(req.body)
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return }
+
+  let payload: { purpose?: string; email?: string; organizationId?: string }
+  try {
+    payload = jwt.verify(parsed.data.token, process.env.JWT_SECRET!) as typeof payload
+  } catch {
+    res.status(400).json({ error: 'Setup link expired or invalid' })
+    return
+  }
+  if (payload.purpose !== 'setup-password' || !payload.email) {
+    res.status(400).json({ error: 'Invalid setup token' })
+    return
+  }
+
+  const user = await prisma.user.findUnique({ where: { email: payload.email } })
+  if (!user) {
+    res.status(404).json({ error: 'Account not found — payment may not have been processed yet' })
+    return
+  }
+
+  // Don't allow overwriting an existing password via this flow (security).
+  if (user.passwordHash) {
+    res.status(409).json({ error: 'Password already set. Use /login or the reset-password flow.' })
+    return
+  }
+
+  const passwordHash = await bcrypt.hash(parsed.data.password, 12)
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash, emailVerifiedAt: new Date() },
+  })
+
+  const memberships = await prisma.organizationMember.findMany({
+    where: { userId: user.id },
+    orderBy: { joinedAt: 'asc' },
+    select: {
+      role: true,
+      organization: { select: { id: true, name: true, slug: true, plan: true } },
+    },
+  })
+
+  const sessionToken = signToken(user.id)
+  res.json({
+    user: { id: user.id, email: user.email, name: user.name },
+    memberships,
+    activeOrganizationId: memberships[0]?.organization.id ?? null,
+    token: sessionToken,
+  })
+})
+
 router.get('/me', async (req, res) => {
   const authHeader = req.headers.authorization
   if (!authHeader?.startsWith('Bearer ')) {

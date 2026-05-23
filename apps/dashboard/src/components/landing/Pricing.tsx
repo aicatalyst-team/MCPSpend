@@ -1,13 +1,27 @@
+'use client'
+import { useState } from 'react'
 import Link from 'next/link'
+import { api, ApiError } from '@/lib/api'
 
-const tiers = [
+interface Tier {
+  id: 'FREE' | 'PRO' | 'TEAM' | 'ENTERPRISE'
+  name: string
+  price: string
+  cadence: string
+  blurb: string
+  cta: string
+  highlighted: boolean
+  features: string[]
+}
+
+const tiers: Tier[] = [
   {
+    id: 'FREE',
     name: 'Free',
     price: '$0',
     cadence: 'forever',
     blurb: 'For solo builders shipping their first agent.',
     cta: 'Start free',
-    href: '/register',
     highlighted: false,
     features: [
       '50,000 tool calls / month',
@@ -17,12 +31,12 @@ const tiers = [
     ],
   },
   {
+    id: 'PRO',
     name: 'Pro',
     price: '$29',
     cadence: 'per month',
     blurb: 'For small teams running agents in production.',
-    cta: 'Start Pro trial',
-    href: '/register?plan=pro',
+    cta: 'Start Pro',
     highlighted: true,
     features: [
       '1M tool calls / month',
@@ -34,12 +48,12 @@ const tiers = [
     ],
   },
   {
+    id: 'TEAM',
     name: 'Team',
     price: '$99',
     cadence: 'per month',
     blurb: 'For multi-team orgs with attribution needs.',
-    cta: 'Start Team trial',
-    href: '/register?plan=team',
+    cta: 'Start Team',
     highlighted: false,
     features: [
       '10M tool calls / month',
@@ -51,12 +65,12 @@ const tiers = [
     ],
   },
   {
+    id: 'ENTERPRISE',
     name: 'Enterprise',
     price: '$499',
     cadence: 'per month',
     blurb: 'For regulated industries and large deployments.',
     cta: 'Start Enterprise',
-    href: '/register?plan=enterprise',
     highlighted: false,
     features: [
       'Unlimited calls',
@@ -70,6 +84,23 @@ const tiers = [
 ]
 
 export function Pricing() {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function startCheckout(plan: 'PRO' | 'TEAM' | 'ENTERPRISE') {
+    setBusy(plan); setError(null)
+    try {
+      const res = await api<{ url: string }>('/api/billing/start', {
+        method: 'POST',
+        body: JSON.stringify({ plan }),
+      })
+      window.location.href = res.url
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not start checkout — please try again or email support@mcpspend.com')
+      setBusy(null)
+    }
+  }
+
   return (
     <section id="pricing" className="py-24 border-t border-white/5">
       <div className="max-w-6xl mx-auto px-6">
@@ -82,10 +113,17 @@ export function Pricing() {
             Volume-based pricing. No per-user tax. Free tier you can actually run a project on.
           </p>
         </div>
-        <div className="mt-14 grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+        {error && (
+          <div className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {tiers.map((t) => (
             <div
-              key={t.name}
+              key={t.id}
               className={
                 t.highlighted
                   ? 'rounded-2xl p-6 bg-gradient-to-b from-brand-500/10 to-transparent border border-brand-500/40 relative'
@@ -103,16 +141,29 @@ export function Pricing() {
                 <span className="text-sm text-gray-500">/ {t.cadence}</span>
               </div>
               <p className="mt-2 text-gray-400 text-sm">{t.blurb}</p>
-              <Link
-                href={t.href}
-                className={
-                  t.highlighted
-                    ? 'mt-5 block text-center bg-white text-gray-950 font-semibold px-4 py-2.5 rounded-lg hover:bg-gray-200 transition-colors'
-                    : 'mt-5 block text-center bg-white/5 border border-white/10 text-white font-semibold px-4 py-2.5 rounded-lg hover:bg-white/10 transition-colors'
-                }
-              >
-                {t.cta}
-              </Link>
+
+              {t.id === 'FREE' ? (
+                <Link
+                  href="/register"
+                  className="mt-5 block text-center bg-white/5 border border-white/10 text-white font-semibold px-4 py-2.5 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  {t.cta}
+                </Link>
+              ) : (
+                <button
+                  onClick={() => startCheckout(t.id as 'PRO' | 'TEAM' | 'ENTERPRISE')}
+                  disabled={busy !== null}
+                  className={
+                    'mt-5 w-full font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ' +
+                    (t.highlighted
+                      ? 'bg-white text-gray-950 hover:bg-gray-200'
+                      : 'bg-white/5 border border-white/10 text-white hover:bg-white/10')
+                  }
+                >
+                  {busy === t.id ? 'Opening checkout…' : t.cta}
+                </button>
+              )}
+
               <ul className="mt-6 space-y-2 text-sm">
                 {t.features.map((f) => (
                   <li key={f} className="flex items-start gap-2 text-gray-300">
@@ -124,6 +175,11 @@ export function Pricing() {
             </div>
           ))}
         </div>
+
+        <p className="mt-8 text-xs text-gray-500 text-center">
+          All paid plans: payment first → email magic link to set your password → instant dashboard access.
+          Billed by NewRzs SRL (CUI RO48756557) · processed securely by Stripe.
+        </p>
       </div>
     </section>
   )

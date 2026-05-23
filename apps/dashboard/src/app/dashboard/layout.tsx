@@ -27,6 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter()
   const pathname = usePathname()
   const [me, setMe] = useState<Me | null>(null)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   useEffect(() => {
     if (!auth.getToken()) { router.push('/login'); return }
@@ -42,6 +43,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       })
   }, [router])
 
+  // Close mobile nav when route changes
+  useEffect(() => { setMobileNavOpen(false) }, [pathname])
+
   const activeOrgId = auth.getOrganizationId()
   const activeOrg = me?.memberships.find(m => m.organization.id === activeOrgId)?.organization
   const role = me?.memberships.find(m => m.organization.id === activeOrgId)?.role
@@ -51,18 +55,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.reload()
   }
 
-  return (
-    <div className="min-h-screen bg-gray-950 flex">
-      {/* Sidebar */}
-      <aside className="w-60 shrink-0 border-r border-white/5 bg-gray-950/50 flex flex-col">
+  function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+    return (
+      <>
         <div className="h-16 flex items-center px-5 border-b border-white/5">
-          <Link href="/dashboard" className="flex items-center gap-2 text-white font-semibold">
+          <Link href="/dashboard" onClick={onNavigate} className="flex items-center gap-2 text-white font-semibold">
             <Image src="/logo.png" alt="MCPSpend" width={32} height={32} className="w-8 h-8 object-contain" priority />
             MCPSpend
           </Link>
         </div>
-
-        {/* Org switcher */}
         {me && (
           <div className="px-3 pt-3">
             <label className="block text-[10px] uppercase tracking-widest text-gray-500 px-2 mb-1">Workspace</label>
@@ -72,14 +73,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-brand-500"
             >
               {me.memberships.map((m) => (
-                <option key={m.organization.id} value={m.organization.id}>
-                  {m.organization.name}
-                </option>
+                <option key={m.organization.id} value={m.organization.id}>{m.organization.name}</option>
               ))}
             </select>
           </div>
         )}
-
         <nav className="flex-1 mt-4 px-3 space-y-1">
           {navItems.map((item) => {
             const active = pathname === item.href
@@ -87,6 +85,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={onNavigate}
                 className={
                   'block px-3 py-2 rounded-lg text-sm transition-colors ' +
                   (active
@@ -99,7 +98,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )
           })}
         </nav>
-
         <div className="p-3 border-t border-white/5">
           {me && (
             <div className="text-xs text-gray-400 px-2 mb-2">
@@ -114,14 +112,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             Sign out
           </button>
         </div>
+      </>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950">
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex fixed inset-y-0 left-0 w-60 border-r border-white/5 bg-gray-950/50 flex-col z-30">
+        <Sidebar />
       </aside>
 
+      {/* Mobile top bar with hamburger */}
+      <div className="md:hidden sticky top-0 z-30 flex items-center justify-between h-14 px-4 bg-gray-950/90 backdrop-blur border-b border-white/5">
+        <Link href="/dashboard" className="flex items-center gap-2 text-white font-semibold">
+          <Image src="/logo.png" alt="MCPSpend" width={28} height={28} className="w-7 h-7 object-contain" priority />
+          MCPSpend
+        </Link>
+        <button
+          onClick={() => setMobileNavOpen(true)}
+          aria-label="Open menu"
+          className="text-white p-2 -mr-2 hover:bg-white/5 rounded"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 6h18M3 12h18M3 18h18" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile drawer */}
+      {mobileNavOpen && (
+        <div className="md:hidden fixed inset-0 z-40">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setMobileNavOpen(false)}
+          />
+          <aside className="absolute inset-y-0 left-0 w-64 bg-gray-950 border-r border-white/10 flex flex-col">
+            <Sidebar onNavigate={() => setMobileNavOpen(false)} />
+          </aside>
+        </div>
+      )}
+
       {/* Main content */}
-      <main className="flex-1 overflow-x-hidden">
+      <main className="md:pl-60 min-h-screen">
         {activeOrg && (
-          <div className="border-b border-white/5 px-8 py-4 flex items-center justify-between">
+          <div className="border-b border-white/5 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between">
             <div>
-              <h1 className="text-lg font-semibold text-white">{activeOrg.name}</h1>
+              <h1 className="text-base md:text-lg font-semibold text-white truncate">{activeOrg.name}</h1>
               <p className="text-xs text-gray-500">
                 <span className="uppercase font-semibold text-gray-400">{activeOrg.plan}</span>
                 {' · '}
@@ -130,7 +167,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
         )}
-        <div className="p-8">{children}</div>
+        <div className="p-4 md:p-8">{children}</div>
       </main>
     </div>
   )

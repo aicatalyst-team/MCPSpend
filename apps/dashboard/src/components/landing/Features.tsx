@@ -1,27 +1,27 @@
 const features = [
   {
-    title: 'Real-time cost tracking',
-    body: 'Every tool call attributed in <100ms. No batch jobs, no spreadsheets, no surprises at month-end.',
+    title: 'Real-time tool-call observability',
+    body: 'Every MCP call captured in <100ms. Volume, latency, success rate per server and per tool — live, no batch jobs.',
   },
   {
     title: 'Per-team & per-customer attribution',
-    body: 'Tag calls with team, project, customer, or workflow. Slice spend any way your CFO needs it.',
+    body: 'Scope API keys to projects, tag sessions with team or customer. Slice usage any way finance needs.',
   },
   {
-    title: 'Budget alerts & throttling',
-    body: 'Set spend caps per team. Get paged before the bill explodes. Optional auto-throttle when limits hit.',
+    title: 'Cost estimation per model',
+    body: 'Each call is priced from payload tokens × your model\'s per-token rate. Approximate but defensible — and improving as we add IDE-layer integrations.',
   },
   {
     title: 'SLA & latency monitoring',
-    body: 'p50/p95/p99 latency per MCP tool. Know which providers are slow before customers complain.',
+    body: 'p50/p95/p99 latency per MCP tool. Know which providers are slow before your customers complain.',
   },
   {
     title: 'Complete audit logs',
     body: 'Every call logged with full provenance — who, when, what, how much. Immutable, queryable, exportable to your warehouse.',
   },
   {
-    title: 'Open formats, no lock-in',
-    body: 'Exports to S3, BigQuery, Snowflake. OpenTelemetry-compatible. Your data, your warehouse.',
+    title: 'IDE extensions (coming soon)',
+    body: 'Native VS Code extension Q3 2026, then Cursor and Windsurf. Direct LLM-token attribution per MCP tool, without an external proxy.',
   },
 ]
 

@@ -5,6 +5,7 @@ import { Problem } from '@/components/landing/Problem'
 import { HowItWorks } from '@/components/landing/HowItWorks'
 import { Features } from '@/components/landing/Features'
 import { Pricing } from '@/components/landing/Pricing'
+import { Faq } from '@/components/landing/Faq'
 import { CTA } from '@/components/landing/CTA'
 
 export default function Home() {
@@ -17,6 +18,7 @@ export default function Home() {
         <HowItWorks />
         <Features />
         <Pricing />
+        <Faq />
         <CTA />
       </main>
       <Footer />

@@ -27,9 +27,8 @@ export function Hero() {
         </h1>
 
         <p className="mt-6 text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
-          MCPSpend sits between your AI agents and your MCP tools.
-          Every call is logged, priced, and attributed in real time — so you see exactly which tools, teams, and customers are burning your budget,
-          <span className="text-white"> before the invoice lands.</span>
+          A transparent proxy that wraps your MCP servers and records every tool call: latency, errors, payload size, and per-model cost estimation.
+          <span className="text-white"> Find which tools, teams, and customers are burning your AI budget — before the invoice lands.</span>
         </p>
 
         <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
