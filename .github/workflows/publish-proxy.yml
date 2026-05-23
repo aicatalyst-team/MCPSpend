@@ -85,10 +85,13 @@ jobs:
           head -1 dist/cli.js
           chmod +x dist/cli.js
 
-      - name: Publish to npm (OIDC + provenance)
+      # Note: --provenance requires a PUBLIC GitHub repository (Sigstore verification).
+      # MCPSpend is a private repo, so we publish via OIDC Trusted Publisher only.
+      # When the repo eventually goes public we'll add --provenance back here.
+      - name: Publish to npm (OIDC Trusted Publisher)
         if: steps.check.outputs.skip != 'true'
         working-directory: packages/proxy
         run: |
           tag="${{ inputs.tag || 'latest' }}"
-          npm publish --access public --provenance --tag "$tag"
-          echo "::notice::Published @mcpspend/proxy@${{ steps.ver.outputs.version }} (tag: $tag) with provenance attestation"
+          npm publish --access public --tag "$tag"
+          echo "::notice::Published @mcpspend/proxy@${{ steps.ver.outputs.version }} (tag: $tag) via OIDC"
