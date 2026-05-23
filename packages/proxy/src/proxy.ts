@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import spawn from 'cross-spawn'
 import { randomUUID } from 'node:crypto'
 import type { Config } from './config.js'
 import { Ingest } from './ingest.js'
@@ -65,14 +65,12 @@ export async function runProxy(opts: {
     process.stderr.write('[mcpspend] no API key configured — running in passthrough mode (no tracking)\n')
   }
 
-  // On Windows, Node's spawn() can't find `.cmd`/`.bat` shims (npx, etc.)
-  // without going through cmd.exe. Use shell: true to let the OS resolve the
-  // command — same path most Node-based CLIs take.
-  const isWindows = process.platform === 'win32'
+  // cross-spawn handles Windows .cmd/.bat resolution and argument quoting
+  // properly, avoiding both spawn ENOENT (no shell) and backslash mangling
+  // (shell: true). See https://github.com/moxystudio/node-cross-spawn.
   const child = spawn(command, args, {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: process.env,
-    shell: isWindows,
   })
 
   const pending = new Map<number | string, PendingCall>()
@@ -150,8 +148,9 @@ export async function runProxy(opts: {
     })
   }
 
-  pipeWithInspect(process.stdin, child.stdin, handleClientMessage)
-  pipeWithInspect(child.stdout, process.stdout, handleServerMessage)
+  // stdio: ['pipe', 'pipe', 'inherit'] guarantees stdin/stdout exist
+  pipeWithInspect(process.stdin, child.stdin!, handleClientMessage)
+  pipeWithInspect(child.stdout!, process.stdout, handleServerMessage)
 
   return new Promise<number>((resolve) => {
     child.on('exit', async (code, signal) => {
