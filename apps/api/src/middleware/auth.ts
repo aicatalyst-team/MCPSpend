@@ -37,6 +37,11 @@ export async function authMiddleware(req: AuthRequest, res: Response, next: Next
     req.apiKeyId = apiKey.id
     req.organizationId = apiKey.organizationId
     req.projectId = apiKey.projectId ?? undefined
+    // API keys are treated as ADMIN-level in their own org for non-destructive
+    // management operations (creating projects, listing members, etc.). Truly
+    // destructive operations (member removal, billing, owner transfers) still
+    // require an actual user session (req.userId set) — see requireUserSession.
+    req.role = 'ADMIN'
     // Update lastUsedAt in background (don't block request)
     void prisma.apiKey.update({ where: { id: apiKey.id }, data: { lastUsedAt: new Date() } }).catch(() => {})
     next()
@@ -97,4 +102,14 @@ export function requireRole(...allowed: Array<'OWNER' | 'ADMIN' | 'MEMBER'>) {
     }
     next()
   }
+}
+
+// Ensures the caller is a real user session (JWT), not just an API key.
+// Use for destructive / privileged operations (member removal, billing).
+export function requireUserSession(req: AuthRequest, res: Response, next: NextFunction) {
+  if (!req.userId) {
+    res.status(403).json({ error: 'User session required (API keys cannot perform this action)' })
+    return
+  }
+  next()
 }

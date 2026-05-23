@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { AuthRequest, requireOrg, requireRole } from '../middleware/auth'
+import { AuthRequest, requireOrg, requireRole, requireUserSession } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 import { generateInvitationToken, hashInvitationToken, buildAcceptUrl } from '../lib/invitation'
 import { sendEmail } from '../lib/email'
@@ -11,7 +11,7 @@ const router = Router()
 const INVITATION_TTL_MS = 14 * 24 * 60 * 60 * 1000 // 14 days
 
 // Create an invitation (OWNER/ADMIN only)
-router.post('/', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.post('/', requireOrg, requireUserSession, requireRole('OWNER', 'ADMIN'), async (req: AuthRequest, res) => {
   const schema = z.object({
     email: z.string().email(),
     role: z.enum(['ADMIN', 'MEMBER']).default('MEMBER'),

@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { AuthRequest, requireOrg, requireRole } from '../middleware/auth'
+import { AuthRequest, requireOrg, requireRole, requireUserSession } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 import { slugify, randomSlugSuffix } from '../lib/slug'
 
@@ -92,7 +92,7 @@ router.get('/current/members', requireOrg, async (req: AuthRequest, res) => {
 })
 
 // Change a member's role (OWNER only)
-router.patch('/current/members/:memberId', requireOrg, requireRole('OWNER'), async (req: AuthRequest, res) => {
+router.patch('/current/members/:memberId', requireOrg, requireUserSession, requireRole('OWNER'), async (req: AuthRequest, res) => {
   const schema = z.object({ role: z.enum(['OWNER', 'ADMIN', 'MEMBER']) })
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return }
@@ -122,7 +122,7 @@ router.patch('/current/members/:memberId', requireOrg, requireRole('OWNER'), asy
 })
 
 // Remove a member (OWNER/ADMIN; users can also remove themselves)
-router.delete('/current/members/:memberId', requireOrg, async (req: AuthRequest, res) => {
+router.delete('/current/members/:memberId', requireOrg, requireUserSession, async (req: AuthRequest, res) => {
   const target = await prisma.organizationMember.findFirst({
     where: { id: req.params.memberId, organizationId: req.organizationId! },
   })

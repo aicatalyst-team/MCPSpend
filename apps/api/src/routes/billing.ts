@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import Stripe from 'stripe'
-import { AuthRequest, requireOrg, requireRole } from '../middleware/auth'
+import { AuthRequest, requireOrg, requireRole, requireUserSession } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 
 const router = Router()
@@ -56,7 +56,7 @@ publicRouter.post('/start', async (req, res) => {
 
 // POST /api/billing/checkout — for users who are already authenticated and
 // want to upgrade an existing organization.
-router.post('/checkout', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.post('/checkout', requireOrg, requireUserSession, requireRole('OWNER', 'ADMIN'), async (req: AuthRequest, res) => {
   const schema = z.object({ plan: z.enum(['PRO', 'TEAM', 'ENTERPRISE']) })
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return }
@@ -106,7 +106,7 @@ router.post('/checkout', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: 
 })
 
 // POST /api/billing/portal — opens the Stripe Customer Portal
-router.post('/portal', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: AuthRequest, res) => {
+router.post('/portal', requireOrg, requireUserSession, requireRole('OWNER', 'ADMIN'), async (req: AuthRequest, res) => {
   const org = await prisma.organization.findUnique({
     where: { id: req.organizationId! },
     select: { stripeCustomerId: true },
