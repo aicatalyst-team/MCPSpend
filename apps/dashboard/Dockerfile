@@ -5,7 +5,7 @@ FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/dashboard/package.json ./apps/dashboard/
-RUN pnpm install --frozen-lockfile --filter @mcpspend/dashboard
+RUN NODE_ENV=development pnpm install --frozen-lockfile --filter @mcpspend/dashboard
 
 FROM deps AS builder
 WORKDIR /app
