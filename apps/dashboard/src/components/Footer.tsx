@@ -43,6 +43,8 @@ export function Footer() {
           <ul className="space-y-2 text-gray-400">
             <li><a href="mailto:support@mcpspend.com" className="hover:text-white transition-colors">support@mcpspend.com</a></li>
             <li><Link href="/login" className="hover:text-white transition-colors">Sign in</Link></li>
+            <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link></li>
+            <li><Link href="/terms" className="hover:text-white transition-colors">Terms</Link></li>
           </ul>
         </div>
       </div>

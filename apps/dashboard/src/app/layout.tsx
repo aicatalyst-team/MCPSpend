@@ -4,31 +4,42 @@ import './globals.css'
 export const metadata: Metadata = {
   metadataBase: new URL('https://mcpspend.com'),
   title: {
-    default: 'MCPSpend — Cost attribution & observability for MCP tools',
+    default: 'MCPSpend — Know what your AI agents really cost',
     template: '%s · MCPSpend',
   },
   description:
-    'MCPSpend is the observability proxy for Model Context Protocol tools. Track tokens, attribute spend per team and customer, and ship AI to production with audit-grade visibility.',
+    'Real-time cost tracking for every MCP tool call across Cursor, Claude Desktop, Windsurf, and VS Code. One command to install. Free tier: 25K calls/month.',
   keywords: [
     'MCP', 'Model Context Protocol', 'AI cost tracking', 'LLM observability',
     'AI cost attribution', 'agent monitoring', 'AI FinOps', 'token tracking',
+    'Cursor', 'Claude Desktop', 'Windsurf', 'Claude Code',
   ],
-  authors: [{ name: 'MCPSpend' }],
+  authors: [{ name: 'MCPSpend', url: 'https://mcpspend.com' }],
+  creator: 'NewRzs SRL',
+  publisher: 'NewRzs SRL',
+  // openGraph.images falls back to /opengraph-image.tsx automatically — Next.js
+  // discovers the route at /opengraph-image.png. Twitter card inherits the
+  // same image via twitter.images.
   openGraph: {
     type: 'website',
     url: 'https://mcpspend.com',
     siteName: 'MCPSpend',
-    title: 'MCPSpend — Cost attribution & observability for MCP tools',
+    title: 'MCPSpend — Know what your AI agents really cost',
     description:
-      'Know what every MCP call costs you. Real-time attribution, complete audit logs, and budget alerts for teams shipping AI to production.',
+      'Real-time cost tracking for every MCP tool call across Cursor, Claude Desktop, Windsurf, and VS Code. One command to install.',
+    locale: 'en_US',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'MCPSpend — Cost attribution & observability for MCP tools',
+    title: 'MCPSpend — Know what your AI agents really cost',
     description:
-      'Know what every MCP call costs you. Real-time attribution, complete audit logs, and budget alerts for teams shipping AI to production.',
+      'Real-time cost tracking for every MCP tool call. One command, every MCP client. Free tier 25K calls/month.',
+    site: '@mcpspend',
+    creator: '@andreisirbu91',
   },
   robots: { index: true, follow: true },
+  alternates: { canonical: 'https://mcpspend.com' },
+  category: 'technology',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

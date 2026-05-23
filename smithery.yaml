@@ -1,0 +1,50 @@
+# Smithery deployment config.
+#
+# This file tells Smithery how to host the MCPSpend MCP server when a user
+# selects the "Smithery hosted" option (run.tools URL). For self-hosted
+# users this file has no effect — they just `npx -y @mcpspend/mcp-server`
+# locally and we never touch their machine.
+#
+# https://smithery.ai/docs/build/deployments
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required:
+      - mcpspendApiKey
+    properties:
+      mcpspendApiKey:
+        type: string
+        title: MCPSpend API key
+        description: >
+          Your MCPSpend API key. Get one at https://mcpspend.com/dashboard/keys.
+          Starts with mcps_live_ or mcps_test_.
+        format: password
+      mcpspendEndpoint:
+        type: string
+        title: API endpoint
+        description: >
+          Optional. Defaults to https://api.mcpspend.com. Override only if you're
+          self-hosting MCPSpend.
+        default: https://api.mcpspend.com
+  commandFunction: |-
+    (config) => ({
+      command: 'npx',
+      args: ['-y', '@mcpspend/mcp-server@latest'],
+      env: {
+        MCPSPEND_API_KEY: config.mcpspendApiKey,
+        MCPSPEND_ENDPOINT: config.mcpspendEndpoint || 'https://api.mcpspend.com',
+      },
+    })
+
+build:
+  # @mcpspend/mcp-server is pulled from npm on demand. No build step needed.
+  dockerfile: |
+    FROM node:22-alpine
+    WORKDIR /app
+    # npx will fetch @mcpspend/mcp-server at runtime via commandFunction.
+    # Pre-warm the cache so first-call latency is acceptable.
+    RUN npx -y @mcpspend/mcp-server@latest --help 2>/dev/null || true
+    ENTRYPOINT ["sh", "-c"]
+    CMD ["npx -y @mcpspend/mcp-server@latest"]

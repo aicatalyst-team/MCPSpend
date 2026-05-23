@@ -13,6 +13,19 @@ function stripeClient() {
   return new Stripe(key)
 }
 
+// Required Stripe Dashboard configuration (one-time, do this manually):
+//   Settings → Public Details:
+//     Terms of Service URL:   https://mcpspend.com/terms
+//     Privacy Policy URL:     https://mcpspend.com/privacy
+//   Settings → Customer Portal:
+//     Enable "Cancel subscriptions" and "Switch plans" — required so users
+//     can manage paid invoices / payment methods. Cancellation also works
+//     via our own /api/billing/cancel endpoint, but the portal handles the
+//     edge cases (failed payment, retried card, etc.).
+//
+// Once those two URLs are set in Stripe, every Checkout session and Customer
+// Portal page renders the links automatically — no per-session config needed.
+
 // Resolve a price ID from (plan, cadence). Yearly env vars are optional —
 // missing yearly falls back to the monthly price so callers can still buy.
 function resolvePriceId(plan: 'PRO' | 'TEAM' | 'ENTERPRISE', cadence: 'monthly' | 'yearly'): string | undefined {

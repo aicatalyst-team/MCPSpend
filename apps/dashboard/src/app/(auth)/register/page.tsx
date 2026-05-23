@@ -108,6 +108,12 @@ function RegisterForm() {
         Already have an account?{' '}
         <Link href="/login" className="text-brand-500 hover:underline">Sign in</Link>
       </p>
+      <p className="text-center text-xs text-gray-500">
+        By creating an account you agree to our{' '}
+        <Link href="/terms" className="hover:text-white underline-offset-2 hover:underline">Terms</Link>
+        {' '}and{' '}
+        <Link href="/privacy" className="hover:text-white underline-offset-2 hover:underline">Privacy Policy</Link>.
+      </p>
     </div>
   )
 }
