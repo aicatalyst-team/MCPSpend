@@ -78,7 +78,11 @@ app.use('/api/billing', authMiddleware, billingRouter)  // /checkout, /portal re
 app.use('/api/export', authMiddleware, exportRouter)    // CSV (Pro+)
 app.use('/api/admin', authMiddleware, adminRouter)      // platform-owner view (SUPER_ADMIN_EMAILS)
 app.use('/api/internal', internalRouter)                // CI/CD: redeploy via DEPLOY_SECRET header (no JWT)
-app.use('/api/mcp', authMiddleware, mcpRouter)          // MCP-over-HTTP endpoint (Smithery, generic HTTP clients)
+// MCP-over-HTTP endpoint. Auth is handled INSIDE the router because the
+// `initialize` and `tools/list` methods are part of the public handshake (any
+// client probes them before sending an API key). Only `tools/call` requires a
+// valid Bearer key.
+app.use('/api/mcp', mcpRouter)
 
 app.listen(PORT, () => {
   console.log(`MCPSpend API v0.2.0 running on port ${PORT}`)

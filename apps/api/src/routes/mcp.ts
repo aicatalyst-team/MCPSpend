@@ -13,11 +13,32 @@
 // We deliberately keep this lean: only initialize + tools/list + tools/call.
 // No streaming, no sessions — Smithery's gateway handles concurrency for us.
 
-import { Router } from 'express'
-import { AuthRequest } from '../middleware/auth'
+import { Router, Request } from 'express'
 import { prisma } from '../lib/prisma'
+import { hashApiKey } from '../lib/apiKey'
 
 const router = Router()
+
+// Resolve `Authorization: Bearer <key>` into an organizationId on every POST.
+// We do this here (not via the global authMiddleware) because the MCP handshake
+// — initialize + tools/list — must answer with `200` even without an API key,
+// so that Smithery/Claude/Cursor can discover the server. Only `tools/call`
+// requires a real key.
+async function resolveBearer(req: Request): Promise<string | null> {
+  const header = req.headers.authorization
+  if (!header || !header.startsWith('Bearer ')) return null
+  const token = header.replace('Bearer ', '').trim()
+  if (!token.startsWith('mcps_')) return null
+  const keyHash = hashApiKey(token)
+  const apiKey = await prisma.apiKey.findUnique({
+    where: { keyHash },
+    select: { organizationId: true, revokedAt: true },
+  })
+  if (!apiKey || apiKey.revokedAt) return null
+  // Bump lastUsedAt out of band — never block the request.
+  void prisma.apiKey.update({ where: { keyHash }, data: { lastUsedAt: new Date() } }).catch(() => {})
+  return apiKey.organizationId
+}
 
 interface RpcRequest {
   jsonrpc: '2.0'
@@ -205,10 +226,11 @@ async function handleTool(name: string, args: Record<string, unknown>, organizat
   }
 }
 
-// Express handler. The authMiddleware in index.ts already resolved the API key
-// into req.organizationId before we get here.
-router.post('/', async (req: AuthRequest, res) => {
-  const organizationId = req.organizationId
+router.post('/', async (req, res) => {
+  // Resolve auth lazily — we only need it for tools/call. Other methods are
+  // part of the public handshake and must work without a key so MCP clients
+  // can discover the server.
+  const organizationId = await resolveBearer(req)
   const rpc = req.body as RpcRequest
 
   // Bare-minimum JSON-RPC validation.
@@ -291,6 +313,28 @@ router.get('/', (_req, res) => {
     version: SERVER_INFO.version,
     transport: 'http',
     hint: 'POST JSON-RPC requests with an Authorization: Bearer <api-key> header. See https://mcpspend.com/docs/mcp-http for protocol details.',
+  })
+})
+
+// Smithery (and other MCP HTTP catalogs) prefer a static server-card.json
+// over runtime scanning. We advertise the same info the runtime handshake
+// produces, so catalogs can list us without making a probe request.
+router.get('/.well-known/mcp/server-card.json', (_req, res) => {
+  res.json({
+    name: SERVER_INFO.name,
+    version: SERVER_INFO.version,
+    description: 'Query your MCPSpend usage from any MCP client — cost today, top tools, recent sessions, budget projections.',
+    publisher: 'NewRzs SRL',
+    homepage: 'https://mcpspend.com',
+    repository: 'https://github.com/andreisirbu91-lab/MCPSpend',
+    license: 'MIT',
+    capabilities: { tools: true, resources: false, prompts: false },
+    tools: TOOLS.map(t => ({ name: t.name, description: t.description })),
+    auth: {
+      type: 'bearer',
+      header: 'Authorization',
+      description: 'Pass your MCPSpend API key (mcps_live_… or mcps_test_…) as Bearer token. Get one at https://mcpspend.com/dashboard/keys.',
+    },
   })
 })
 
