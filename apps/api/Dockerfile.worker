@@ -11,7 +11,7 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS builder
 WORKDIR /app
 COPY apps/api ./apps/api
-RUN /app/node_modules/.bin/prisma generate --schema=apps/api/prisma/schema.prisma
+RUN cd apps/api && /app/node_modules/.bin/prisma generate
 RUN pnpm --filter @mcpspend/api run build
 
 FROM node:20-alpine AS runner
