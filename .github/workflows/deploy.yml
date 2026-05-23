@@ -27,14 +27,20 @@ jobs:
     steps:
       - name: Trigger Coolify deploy — API
         run: |
-          response=$(curl -s -o /tmp/body -w "%{http_code}" -X POST \
-            "https://api.mcpspend.com/api/internal/redeploy" \
-            -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
-            -H "Content-Type: application/json" \
-            -d '{"uuid":"${{ secrets.COOLIFY_API_UUID }}"}')
-          echo "API response: $response"
-          cat /tmp/body
-          if [ "$response" != "200" ]; then exit 1; fi
+          for attempt in 1 2 3 4 5; do
+            response=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
+              "https://api.mcpspend.com/api/internal/redeploy" \
+              -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
+              -H "Content-Type: application/json" \
+              -d '{"uuid":"${{ secrets.COOLIFY_API_UUID }}"}' || echo "000")
+            echo "API attempt $attempt: $response"
+            cat /tmp/body 2>/dev/null
+            if [ "$response" = "200" ]; then exit 0; fi
+            echo "Retrying in 20s (webhook may be restarting)..."
+            sleep 20
+          done
+          echo "Webhook never returned 200 after 5 attempts"
+          exit 1
 
   deploy-worker:
     name: Deploy Worker
@@ -47,14 +53,18 @@ jobs:
     steps:
       - name: Trigger Coolify deploy — Worker
         run: |
-          response=$(curl -s -o /tmp/body -w "%{http_code}" -X POST \
-            "https://api.mcpspend.com/api/internal/redeploy" \
-            -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
-            -H "Content-Type: application/json" \
-            -d '{"uuid":"${{ secrets.COOLIFY_WORKER_UUID }}"}')
-          echo "Worker response: $response"
-          cat /tmp/body
-          if [ "$response" != "200" ]; then exit 1; fi
+          for attempt in 1 2 3 4 5; do
+            response=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
+              "https://api.mcpspend.com/api/internal/redeploy" \
+              -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
+              -H "Content-Type: application/json" \
+              -d '{"uuid":"${{ secrets.COOLIFY_WORKER_UUID }}"}' || echo "000")
+            echo "Worker attempt $attempt: $response"
+            cat /tmp/body 2>/dev/null
+            if [ "$response" = "200" ]; then exit 0; fi
+            sleep 20
+          done
+          exit 1
 
   deploy-dashboard:
     name: Deploy Dashboard
@@ -63,14 +73,18 @@ jobs:
     steps:
       - name: Trigger Coolify deploy — Dashboard
         run: |
-          response=$(curl -s -o /tmp/body -w "%{http_code}" -X POST \
-            "https://api.mcpspend.com/api/internal/redeploy" \
-            -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
-            -H "Content-Type: application/json" \
-            -d '{"uuid":"${{ secrets.COOLIFY_DASHBOARD_UUID }}"}')
-          echo "Dashboard response: $response"
-          cat /tmp/body
-          if [ "$response" != "200" ]; then exit 1; fi
+          for attempt in 1 2 3 4 5; do
+            response=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
+              "https://api.mcpspend.com/api/internal/redeploy" \
+              -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
+              -H "Content-Type: application/json" \
+              -d '{"uuid":"${{ secrets.COOLIFY_DASHBOARD_UUID }}"}' || echo "000")
+            echo "Dashboard attempt $attempt: $response"
+            cat /tmp/body 2>/dev/null
+            if [ "$response" = "200" ]; then exit 0; fi
+            sleep 20
+          done
+          exit 1
 
   notify:
     name: Deploy complete
