@@ -16,6 +16,8 @@ jobs:
   publish:
     name: Build & publish
     runs-on: ubuntu-latest
+    # OIDC: required for npm Trusted Publisher + provenance attestation.
+    # No NPM_TOKEN needed — npm validates the workflow identity via Sigstore.
     permissions:
       contents: read
       id-token: write
@@ -72,16 +74,13 @@ jobs:
             echo "::error::dist/cli.js missing — build failed"
             exit 1
           fi
-          # Ensure the shebang is present so `mcpspend` is directly executable
           head -1 dist/cli.js
           chmod +x dist/cli.js
 
-      - name: Publish to npm
+      - name: Publish to npm (OIDC + provenance)
         if: steps.check.outputs.skip != 'true'
         working-directory: packages/proxy
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           tag="${{ inputs.tag || 'latest' }}"
-          npm publish --access public --tag "$tag"
-          echo "::notice::Published @mcpspend/proxy@${{ steps.ver.outputs.version }} with tag $tag"
+          npm publish --access public --provenance --tag "$tag"
+          echo "::notice::Published @mcpspend/proxy@${{ steps.ver.outputs.version }} (tag: $tag) with provenance attestation"
