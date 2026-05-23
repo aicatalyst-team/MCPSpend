@@ -2,8 +2,9 @@
 import { loadConfig, saveConfig } from './config.js'
 import { runProxy } from './proxy.js'
 import { runInit, formatReport, runDoctor, formatDoctor } from './init.js'
+import { buildSnippet, formatSnippet, SnippetClient } from './snippet.js'
 
-const VERSION = '0.3.1'
+const VERSION = '0.4.0'
 
 const HELP = `mcpspend — observability proxy for MCP servers (v${VERSION})
 
@@ -11,6 +12,9 @@ USAGE
   mcpspend init [options]               Auto-detect MCP clients and wrap their servers
   mcpspend doctor                       Diagnose setup (clients, API key, endpoint)
   mcpspend wrap [options] -- <cmd>...   Manually wrap a single MCP server invocation
+  mcpspend snippet [options] -- <cmd>...
+                                        Print a paste-ready JSON snippet for a
+                                        specific client (Windsurf protobuf, custom).
   mcpspend config set <key> <value>
   mcpspend config show
   mcpspend --version | --help
@@ -33,6 +37,15 @@ WRAP OPTIONS
   --model <name>           Model name for cost attribution (default: mcp-stdio)
   --disable                Run in passthrough mode (no tracking)
 
+SNIPPET OPTIONS
+  --client <id>            One of: claude-desktop, cursor, windsurf, vscode,
+                           vscode-workspace, claude-code, generic. Default: generic.
+  --name <name>            Server name in the resulting JSON. Default: inferred from --
+  --project <id>           Attribute calls to this project (baked into wrap args)
+  --endpoint <url>         API endpoint
+  --agent <name>           Agent name
+  --style <npx|bin>        Wrap style. Default: npx (no global install required).
+
 EXAMPLES
   # First-time setup: paste your API key, patch every installed MCP client
   mcpspend init --key mcps_live_xxx
@@ -49,7 +62,10 @@ EXAMPLES
   # Manual single-server wrap (no client config touched)
   mcpspend wrap --key mcps_live_xxx -- npx @modelcontextprotocol/server-filesystem /data
 
-Environment variables: MCPSPEND_API_KEY, MCPSPEND_ENDPOINT, MCPSPEND_PROJECT_ID, MCPSPEND_AGENT_NAME, MCPSPEND_DISABLED=1
+  # Get a copy-paste snippet for Windsurf (which stores config as protobuf)
+  mcpspend snippet --client windsurf --name playwright -- npx -y @playwright/mcp@latest
+
+Environment variables: MCPSPEND_API_KEY, MCPSPEND_ENDPOINT, MCPSPEND_PROJECT_ID, MCPSPEND_AGENT_NAME, MCPSPEND_DISABLED=1, MCPSPEND_NO_TELEMETRY=1
 Config file: ~/.mcpspend/config.json
 `
 
@@ -63,8 +79,17 @@ interface InitArgs {
   unwrap: boolean
 }
 
+interface SnippetArgs {
+  client: SnippetClient
+  name?: string
+  projectId?: string
+  endpoint?: string
+  agentName?: string
+  style: 'npx' | 'bin'
+}
+
 interface ParsedArgs {
-  command: 'wrap' | 'config' | 'init' | 'doctor' | 'help' | 'version'
+  command: 'wrap' | 'config' | 'init' | 'doctor' | 'snippet' | 'help' | 'version'
   configAction?: 'set' | 'show'
   configKey?: string
   configValue?: string
@@ -77,6 +102,7 @@ interface ParsedArgs {
     disabled?: boolean
   }
   initOpts: InitArgs
+  snippetOpts: SnippetArgs
   childCommand?: string
   childArgs: string[]
 }
@@ -86,6 +112,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     command: 'help',
     wrapOpts: {},
     initOpts: { clients: [], dryRun: false, unwrap: false },
+    snippetOpts: { client: 'generic', style: 'npx' },
     childArgs: [],
   }
 
@@ -124,6 +151,37 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (cmd === 'doctor') {
     result.command = 'doctor'
+    return result
+  }
+
+  if (cmd === 'snippet') {
+    result.command = 'snippet'
+    let i = 1
+    while (i < argv.length) {
+      const a = argv[i]
+      if (a === '--') { i++; break }
+      const next = argv[i + 1]
+      switch (a) {
+        case '--client':    result.snippetOpts.client = next as SnippetClient; i += 2; break
+        case '--name':      result.snippetOpts.name = next; i += 2; break
+        case '--project':   result.snippetOpts.projectId = next; i += 2; break
+        case '--endpoint':  result.snippetOpts.endpoint = next; i += 2; break
+        case '--agent':     result.snippetOpts.agentName = next; i += 2; break
+        case '--style':
+          if (next === 'npx' || next === 'bin') result.snippetOpts.style = next
+          else { process.stderr.write('mcpspend: --style must be npx or bin\n'); process.exit(2) }
+          i += 2; break
+        default:
+          process.stderr.write(`mcpspend: unknown option ${a}\n`)
+          process.exit(2)
+      }
+    }
+    if (i >= argv.length) {
+      process.stderr.write('mcpspend: missing command for snippet. Use: mcpspend snippet [options] -- <command> [args...]\n')
+      process.exit(2)
+    }
+    result.childCommand = argv[i]
+    result.childArgs = argv.slice(i + 1)
     return result
   }
 
@@ -215,6 +273,22 @@ async function main() {
     return
   }
 
+  if (parsed.command === 'snippet') {
+    const inferredName = guessServerName(parsed.childCommand!, parsed.childArgs)
+    const out = buildSnippet({
+      client: parsed.snippetOpts.client,
+      serverName: parsed.snippetOpts.name || inferredName,
+      command: parsed.childCommand!,
+      args: parsed.childArgs,
+      projectId: parsed.snippetOpts.projectId,
+      endpoint: parsed.snippetOpts.endpoint,
+      agentName: parsed.snippetOpts.agentName,
+      style: parsed.snippetOpts.style,
+    })
+    process.stdout.write(formatSnippet(out) + '\n')
+    return
+  }
+
   if (parsed.command === 'config') {
     if (parsed.configAction === 'show') {
       const cfg = loadConfig()
@@ -248,6 +322,35 @@ async function main() {
     })
     process.exit(code)
   }
+}
+
+// Very small heuristic — keeps snippet code self-contained without exporting
+// extractServerName from proxy.ts. Same trade-off rules apply: drop versions,
+// drop scopes that reduce to "mcp", strip mcp-server- prefixes.
+function guessServerName(command: string, args: string[]): string {
+  const skip = new Set(['npx', 'npx.cmd', 'uvx', 'pnpx', 'bunx', 'pipx', 'node', 'bun', 'deno', 'python', 'python3'])
+  const tokens = [command, ...args].filter((t) => t && !t.startsWith('-') && !skip.has(t.toLowerCase()))
+  for (const raw of tokens) {
+    let t = raw
+    const lastAt = t.lastIndexOf('@')
+    if (lastAt > 0) t = t.slice(0, lastAt)
+    let scope: string | null = null
+    if (t.startsWith('@')) {
+      const slash = t.indexOf('/')
+      if (slash > 0) { scope = t.slice(1, slash); t = t.slice(slash + 1) }
+    }
+    t = (t.split(/[\\/]/).pop() || t).replace(/\.(js|cjs|mjs|ts|tsx|py)$/i, '')
+    t = t.replace(/^mcp-server-/i, '').replace(/-mcp-server$/i, '')
+    t = t.replace(/^server-/i, '').replace(/-server$/i, '')
+    t = t.replace(/^mcp-/i, '').replace(/-mcp$/i, '')
+    t = t.toLowerCase().trim()
+    if (!t || t === 'mcp' || t === 'server') {
+      if (scope) return scope.toLowerCase()
+      continue
+    }
+    return t
+  }
+  return 'mcp-server'
 }
 
 main().catch((err) => {

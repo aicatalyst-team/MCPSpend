@@ -51,7 +51,13 @@ export const CLIENTS: ClientDefinition[] = [
   {
     id: 'cursor',
     name: 'Cursor',
-    configPaths: () => [join(home, '.cursor', 'mcp.json')],
+    configPaths: () => [
+      join(home, '.cursor', 'mcp.json'),
+      // Cursor also supports a workspace-scoped config at .cursor/mcp.json
+      // in the project. We discover it from process.cwd() so init knows about
+      // the project the user is currently in.
+      join(process.cwd(), '.cursor', 'mcp.json'),
+    ],
   },
   {
     id: 'windsurf',
@@ -93,9 +99,25 @@ export const CLIENTS: ClientDefinition[] = [
     serversKey: 'servers',
   },
   {
+    id: 'vscode-workspace',
+    name: 'VS Code (workspace)',
+    // Workspace-scoped MCP config that lives inside the project. Cursor also
+    // reads this file because Cursor is a VS Code fork, so wrapping it here
+    // covers both. We resolve from process.cwd() — `init` should be run from
+    // the project root.
+    configPaths: () => [join(process.cwd(), '.vscode', 'mcp.json')],
+    serversKey: 'servers',
+  },
+  {
     id: 'claude-code',
     name: 'Claude Code',
-    configPaths: () => [join(home, '.claude.json')],
+    // User-level config at ~/.claude.json AND project-level `.mcp.json` in
+    // the current working directory. The project-level file is the standard
+    // way to ship MCP server lists with a repository.
+    configPaths: () => [
+      join(home, '.claude.json'),
+      join(process.cwd(), '.mcp.json'),
+    ],
   },
 ]
 
@@ -111,21 +133,20 @@ export interface DiscoveredClient {
 export function discoverClients(): DiscoveredClient[] {
   const found: DiscoveredClient[] = []
   for (const c of CLIENTS) {
-    let matched = false
-
-    // First try existing config files (the common case).
-    for (const p of c.configPaths()) {
-      if (existsSync(p)) {
+    // Collect EVERY existing config file for this client, not just the first.
+    // Claude Code in particular has both a user-level (~/.claude.json) and
+    // project-level (./.mcp.json) location and they're independent.
+    const existing = c.configPaths().filter(p => existsSync(p))
+    if (existing.length > 0) {
+      for (const p of existing) {
         found.push({ client: c, path: p })
-        matched = true
-        break
       }
+      continue
     }
-    if (matched) continue
 
     // Fall back to install markers. If the client is installed but has never
     // had a config written, take the first configPath as the destination and
-    // mark the discovery as bootstrapped.
+    // mark the discovery as bootstrapped so init creates the file.
     if (c.installMarkers) {
       const installed = c.installMarkers().some(p => existsSync(p))
       if (installed) {
