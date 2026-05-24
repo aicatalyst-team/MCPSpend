@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.andreisirbu91-lab/mcpspend",
+  "description": "Query your MCPSpend usage from any MCP client. Per-tool cost attribution, top tools by spend, recent sessions, month-to-date usage projections. Pairs with the MCPSpend observability proxy that records every MCP tool call your agents make.",
+  "repository": {
+    "url": "https://github.com/andreisirbu91-lab/MCPSpend",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@mcpspend/mcp-server",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MCPSPEND_API_KEY",
+          "description": "Your MCPSpend API key. Create one at https://mcpspend.com/dashboard/keys. Starts with mcps_live_ or mcps_test_.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "MCPSPEND_ENDPOINT",
+          "description": "Optional. Override the MCPSpend API endpoint. Defaults to https://api.mcpspend.com. Use only if you self-host MCPSpend.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string",
+          "default": "https://api.mcpspend.com"
+        }
+      ]
+    }
+  ]
+}
