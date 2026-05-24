@@ -8,3 +8,16 @@ dist
 *.log
 .DS_Store
 prisma/migrations/dev_*
+
+# Local agent / editor configs — may contain live MCP API keys
+.mcp.json
+.vscode/mcp.json
+.claude/
+*.tsbuildinfo
+
+# Local VS Code workspace settings (keep .vscode/extensions.json shareable if needed)
+.vscode/settings.json
+.vscode/launch.json
+
+# Build artifacts
+packages/vscode-extension/*.vsix
