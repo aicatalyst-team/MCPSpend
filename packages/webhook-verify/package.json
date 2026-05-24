@@ -1,0 +1,35 @@
+{
+  "name": "@mcpspend/webhook-verify",
+  "version": "0.1.0",
+  "description": "Verify HMAC-SHA256 signatures on incoming MCPSpend webhooks. Zero-dep, works in any Node ≥18 / Bun / Deno / edge runtime.",
+  "license": "MIT",
+  "homepage": "https://mcpspend.com/docs",
+  "bugs": "mailto:support@mcpspend.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andreisirbu91-lab/MCPSpend.git",
+    "directory": "packages/webhook-verify"
+  },
+  "keywords": ["mcpspend", "webhook", "hmac", "verify", "mcp"],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.10",
+    "typescript": "^5.7.3"
+  }
+}

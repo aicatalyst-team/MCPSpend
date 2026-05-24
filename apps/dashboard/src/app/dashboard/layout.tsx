@@ -25,6 +25,7 @@ const navItems = [
   { href: '/dashboard/invitations', label: 'Invitations' },
   { href: '/dashboard/billing', label: 'Billing' },
   { href: '/dashboard/audit', label: 'Audit log' },
+  { href: '/dashboard/webhooks', label: 'Webhooks' },
   { href: '/dashboard/account/privacy', label: 'Privacy' },
 ]
 

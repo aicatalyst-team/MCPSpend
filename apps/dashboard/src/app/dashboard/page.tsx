@@ -162,6 +162,62 @@ export default function DashboardPage() {
       </div>
 
       <DashboardView overview={{ totals: liveTotals!, daily: liveDaily, topTools: overview?.topTools ?? [], topServers: overview?.topServers ?? [] }} />
+
+      {/* Top end-customers tile — only renders if any rows have a customerLabel.
+          Lets agencies / SaaS-on-MCP see per-tenant breakdown without leaving
+          the overview page. */}
+      <TopCustomersTile />
+    </div>
+  )
+}
+
+interface TopCustomerRow {
+  customerLabel: string
+  callCount: number
+  costUsd: number
+  inputTokens: number
+  outputTokens: number
+}
+
+function TopCustomersTile() {
+  const [data, setData] = useState<TopCustomerRow[] | null>(null)
+  useEffect(() => {
+    api<{ customers: TopCustomerRow[] }>('/api/stats/customers?days=30&limit=10')
+      .then((d) => setData(d.customers))
+      .catch(() => setData([]))
+  }, [])
+
+  if (!data || data.length === 0) return null
+
+  const max = Math.max(...data.map((c) => c.costUsd), 0.0001)
+  return (
+    <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs text-gray-500">Top end-customers (30d)</div>
+        <Link href="/dashboard/billing" className="text-xs text-brand-400 hover:underline">
+          Set up MCPSPEND_CUSTOMER_LABEL →
+        </Link>
+      </div>
+      <div className="space-y-1.5">
+        {data.map((c) => {
+          const bar = (c.costUsd / max) * 100
+          return (
+            <div key={c.customerLabel} className="grid grid-cols-[1fr_auto_1fr_auto] gap-3 items-center text-sm">
+              <span className="font-mono text-xs text-gray-300 truncate">{c.customerLabel}</span>
+              <span className="font-mono text-xs text-white tabular-nums text-right w-24">${c.costUsd.toFixed(4)}</span>
+              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-brand-500"
+                  style={{ width: `${bar}%` }}
+                />
+              </div>
+              <span className="text-xs tabular-nums text-right text-gray-500 w-16">
+                {c.callCount.toLocaleString()} calls
+              </span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
