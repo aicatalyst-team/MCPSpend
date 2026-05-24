@@ -189,7 +189,10 @@ router.post('/checkout', requireOrg, requireUserSession, requireRole('OWNER', 'A
 router.post('/cancel', requireOrg, requireUserSession, requireRole('OWNER', 'ADMIN'), async (req: AuthRequest, res) => {
   const org = await prisma.organization.findUnique({
     where: { id: req.organizationId! },
-    select: { stripeSubscriptionId: true },
+    select: {
+      stripeSubscriptionId: true, name: true, plan: true,
+      members: { where: { role: { in: ['OWNER', 'ADMIN'] } }, select: { user: { select: { email: true } } } },
+    },
   })
   if (!org?.stripeSubscriptionId) {
     res.status(400).json({ error: 'No active subscription to cancel' })
@@ -199,10 +202,35 @@ router.post('/cancel', requireOrg, requireUserSession, requireRole('OWNER', 'ADM
     const sub = await stripeClient().subscriptions.update(org.stripeSubscriptionId, {
       cancel_at_period_end: true,
     })
-    res.json({
-      scheduled: true,
-      cancelAt: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
-    })
+    const cancelAtIso = sub.current_period_end
+      ? new Date(sub.current_period_end * 1000).toISOString()
+      : null
+
+    // Fire-and-forget confirmation email so the user has a record of what
+    // they triggered + the exact end-of-access date. Helps reduce "did my
+    // cancellation go through?" support tickets.
+    void (async () => {
+      try {
+        const { subscriptionCancelledEmail } = await import('../emails/templates')
+        const dashboardUrl = process.env.DASHBOARD_URL?.split(',')[0]?.trim() || 'https://mcpspend.com'
+        const recipients = org.members.map(m => m.user.email).filter(Boolean)
+        if (recipients.length === 0) return
+        const { sendEmail } = await import('../lib/email')
+        await sendEmail({
+          to: recipients,
+          ...subscriptionCancelledEmail({
+            organizationName: org.name,
+            plan: org.plan,
+            endsAtIso: cancelAtIso,
+            dashboardUrl: `${dashboardUrl}/dashboard/billing`,
+          }),
+        })
+      } catch (err) {
+        console.error('[billing] cancel email failed:', err)
+      }
+    })()
+
+    res.json({ scheduled: true, cancelAt: cancelAtIso })
   } catch (err) {
     if ((err as Stripe.errors.StripeError)?.code === 'resource_missing') {
       // Subscription already gone on Stripe side — just clear our side.

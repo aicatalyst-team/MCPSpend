@@ -11,7 +11,7 @@
 
 import { prisma } from './prisma'
 import { sendEmail } from './email'
-import { budgetAlertEmail, spendAlertEmail } from '../emails/templates'
+import { budgetAlertEmail, spendAlertEmail, weeklyDigestEmail } from '../emails/templates'
 import { decrypt } from './crypto'
 
 const RETENTION_DAYS: Record<string, number | null> = {
@@ -238,6 +238,142 @@ export async function runBudgetAlerts(): Promise<{ orgId: string; level: AlertLe
   return sent
 }
 
+// Weekly digest. Runs Monday morning UTC (08:00-12:00 window — actual hour
+// depends on when the scheduler tick lands inside it). Sends an email to
+// OWNER/ADMIN of every org that had activity in the previous week.
+//
+// State tracking: we keep the last weekStart we sent for a given org in
+// memory only — restarts after Monday morning may double-send, which is
+// preferable to missing weeks during routine restarts. A small per-org row
+// would fix this if it ever matters.
+
+const sentDigestsThisWeek = new Set<string>() // orgId-yyyyWW
+
+function isoWeekKey(orgId: string, monday: Date): string {
+  const y = monday.getUTCFullYear()
+  const start = new Date(Date.UTC(y, 0, 1))
+  const week = Math.ceil((((+monday - +start) / 86400000) + start.getUTCDay() + 1) / 7)
+  return `${orgId}-${y}W${String(week).padStart(2, '0')}`
+}
+
+function lastMondayUtc(now: Date): Date {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const dow = d.getUTCDay() // 0 = Sun, 1 = Mon
+  const diff = dow === 0 ? -6 : 1 - dow
+  d.setUTCDate(d.getUTCDate() + diff)
+  // We send the digest covering the PREVIOUS Mon..Sun, so step back one more week.
+  d.setUTCDate(d.getUTCDate() - 7)
+  return d
+}
+
+export async function runWeeklyDigest(): Promise<{ orgId: string; channels: string[] }[]> {
+  const now = new Date()
+  // Send window: Mondays between 08:00 and 12:00 UTC.
+  if (now.getUTCDay() !== 1) return []
+  if (now.getUTCHours() < 8 || now.getUTCHours() >= 12) return []
+
+  const weekStart = lastMondayUtc(now) // last full week's Monday
+  const weekEnd = new Date(weekStart)
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
+
+  const prevWeekStart = new Date(weekStart)
+  prevWeekStart.setUTCDate(prevWeekStart.getUTCDate() - 7)
+
+  const dashboardUrl = process.env.DASHBOARD_URL?.split(',')[0]?.trim() || 'https://mcpspend.com'
+  const sent: { orgId: string; channels: string[] }[] = []
+
+  // Only orgs that had calls last week — no point emailing an empty digest.
+  const activeOrgs = await prisma.dailyStats.groupBy({
+    by: ['organizationId'],
+    where: { date: { gte: weekStart, lt: weekEnd } },
+    _sum: { costUsd: true, callCount: true },
+    having: { callCount: { _sum: { gt: 0 } } },
+  })
+
+  for (const row of activeOrgs) {
+    const key = isoWeekKey(row.organizationId, weekStart)
+    if (sentDigestsThisWeek.has(key)) continue
+
+    const org = await prisma.organization.findUnique({
+      where: { id: row.organizationId },
+      select: {
+        id: true, name: true,
+        members: { where: { role: { in: ['OWNER', 'ADMIN'] } }, select: { user: { select: { email: true } } } },
+      },
+    })
+    if (!org) continue
+
+    const recipients = org.members.map(m => m.user.email).filter(Boolean)
+    if (recipients.length === 0) continue
+
+    // Prior week metrics for the delta.
+    const prevAgg = await prisma.dailyStats.aggregate({
+      where: { organizationId: org.id, date: { gte: prevWeekStart, lt: weekStart } },
+      _sum: { costUsd: true, callCount: true },
+    })
+
+    // Top 5 tools last week.
+    const topTools = await prisma.dailyStats.groupBy({
+      by: ['toolName', 'serverName'],
+      where: { organizationId: org.id, date: { gte: weekStart, lt: weekEnd }, toolName: { not: null } },
+      _sum: { callCount: true, costUsd: true },
+      orderBy: { _sum: { costUsd: 'desc' } },
+      take: 5,
+    })
+
+    // Lightweight anomaly heuristic: any tool whose cost > 2x median of the
+    // last 4 weeks (excluding this week). Useful, not magic.
+    const fourWeeksAgo = new Date(weekStart)
+    fourWeeksAgo.setUTCDate(fourWeeksAgo.getUTCDate() - 28)
+    const anomalies: { label: string; detail: string }[] = []
+    for (const t of topTools.slice(0, 3)) {
+      const baseline = await prisma.dailyStats.aggregate({
+        where: {
+          organizationId: org.id,
+          date: { gte: fourWeeksAgo, lt: weekStart },
+          serverName: t.serverName,
+          toolName: t.toolName,
+        },
+        _sum: { costUsd: true },
+      })
+      const baselineWeekly = (baseline._sum.costUsd ?? 0) / 4
+      const thisWeek = t._sum.costUsd ?? 0
+      if (baselineWeekly > 0 && thisWeek > baselineWeekly * 2) {
+        const ratio = (thisWeek / baselineWeekly).toFixed(1)
+        anomalies.push({
+          label: `${t.serverName}/${t.toolName}`,
+          detail: `cost is ${ratio}x the 4-week average ($${thisWeek.toFixed(4)} vs avg $${baselineWeekly.toFixed(4)})`,
+        })
+      }
+    }
+
+    const { subject, html } = weeklyDigestEmail({
+      organizationName: org.name,
+      weekStart: weekStart.toISOString().slice(0, 10),
+      weekEnd: new Date(+weekEnd - 1).toISOString().slice(0, 10),
+      weekCalls: row._sum.callCount ?? 0,
+      weekCostUsd: row._sum.costUsd ?? 0,
+      prevWeekCalls: prevAgg._sum.callCount ?? 0,
+      prevWeekCostUsd: prevAgg._sum.costUsd ?? 0,
+      topTools: topTools.map(t => ({
+        serverName: t.serverName ?? '—',
+        toolName: t.toolName ?? '—',
+        costUsd: t._sum.costUsd ?? 0,
+        callCount: t._sum.callCount ?? 0,
+      })),
+      anomalies,
+      dashboardUrl: `${dashboardUrl}/dashboard`,
+    })
+
+    const r = await sendEmail({ to: recipients, subject, html })
+    const channels = r.error ? [] : ['email']
+    sentDigestsThisWeek.add(key)
+    sent.push({ orgId: org.id, channels })
+  }
+
+  return sent
+}
+
 export interface MaintenanceSchedulerOptions {
   // ms between runs. Default 1h.
   intervalMs?: number
@@ -257,7 +393,8 @@ export function startMaintenanceScheduler(opts: MaintenanceSchedulerOptions = {}
       const retention = await runRetention()
       const quotaAlerts = await runBudgetAlerts()
       const spendAlerts = await runSpendAlerts()
-      console.log(`[maintenance] retention=${JSON.stringify(retention)} quota_alerts=${quotaAlerts.length} spend_alerts=${spendAlerts.length}`)
+      const digests = await runWeeklyDigest()
+      console.log(`[maintenance] retention=${JSON.stringify(retention)} quota_alerts=${quotaAlerts.length} spend_alerts=${spendAlerts.length} digests=${digests.length}`)
     } catch (err) {
       console.error('[maintenance] tick failed:', err)
     } finally {

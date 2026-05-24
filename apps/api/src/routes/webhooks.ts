@@ -187,6 +187,14 @@ async function handleSubscriptionChange(sub: Stripe.Subscription) {
   const planInfo = PLAN_LIMITS[priceId]
   if (!planInfo) return
 
+  // Capture the previous plan + sub state so we can decide whether to send the
+  // "subscription started" email (first transition into a paid plan or upgrade
+  // to a different paid plan). We don't email on duplicate updates.
+  const prev = await prisma.organization.findFirst({
+    where: { stripeCustomerId: sub.customer as string },
+    select: { id: true, name: true, plan: true, stripeSubscriptionId: true, members: { where: { role: { in: ['OWNER', 'ADMIN'] } }, select: { user: { select: { email: true } } } } },
+  })
+
   await prisma.organization.updateMany({
     where: { stripeCustomerId: sub.customer as string },
     data: {
@@ -195,6 +203,34 @@ async function handleSubscriptionChange(sub: Stripe.Subscription) {
       stripeSubscriptionId: sub.id,
     },
   })
+
+  // Fire confirmation email when plan actually changed (FREE→paid, or paid→paid
+  // tier change). Skip if it's the same plan with the same sub ID (Stripe sends
+  // duplicate updates for things like payment-method changes).
+  const isNewSubscription = prev && (prev.plan !== planInfo.plan || prev.stripeSubscriptionId !== sub.id)
+  if (isNewSubscription && prev.plan !== planInfo.plan) {
+    void (async () => {
+      try {
+        const { subscriptionStartedEmail } = await import('../emails/templates')
+        const dashboardUrl = process.env.DASHBOARD_URL?.split(',')[0]?.trim() || 'https://mcpspend.com'
+        const cadence = sub.items.data[0]?.price.recurring?.interval === 'year' ? 'yearly' : 'monthly'
+        const recipients = prev.members.map(m => m.user.email).filter(Boolean)
+        if (recipients.length === 0) return
+        await sendEmail({
+          to: recipients,
+          ...subscriptionStartedEmail({
+            organizationName: prev.name,
+            plan: planInfo.plan,
+            cadence,
+            callsLimit: planInfo.limit,
+            dashboardUrl: `${dashboardUrl}/dashboard`,
+          }),
+        })
+      } catch (err) {
+        console.error('[webhook] subscription started email failed:', err)
+      }
+    })()
+  }
 }
 
 router.post('/stripe', async (req, res) => {
