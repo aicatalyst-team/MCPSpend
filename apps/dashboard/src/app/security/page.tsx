@@ -30,7 +30,7 @@ const CONTROLS: { section: string; items: Control[] }[] = [
   {
     section: 'Hosting & isolation',
     items: [
-      { title: 'EU-hosted infrastructure', status: 'done', detail: 'Servers in Hetzner data centers (Germany). All data — DB, Redis, logs — stays in the EU.' },
+      { title: 'EU-hosted infrastructure', status: 'done', detail: 'Servers in Hostinger EU data centers. All data — DB, Redis, logs — stays in the EU.' },
       { title: 'Per-organization data isolation', status: 'done', detail: 'Every API endpoint scopes by organizationId. No cross-tenant data leak possible at the query layer.' },
       { title: 'Stripe — no card data on our servers', status: 'done', detail: 'Stripe Checkout collects all card data; we receive only a customer ID. SOC 2 / PCI DSS Level 1 inherited from Stripe.' },
       { title: 'Dedicated single-tenant deployment', status: 'planned', detail: 'Available for Enterprise. Separate VPS + database, your own subdomain.' },
@@ -59,7 +59,7 @@ const CONTROLS: { section: string; items: Control[] }[] = [
 ]
 
 const SUB_PROCESSORS = [
-  { name: 'Hetzner Cloud (Germany, EU)', purpose: 'Application + database hosting', data: 'All MCPSpend data' },
+  { name: 'Hostinger (EU region)', purpose: 'Application + database hosting (VPS)', data: 'All MCPSpend data' },
   { name: 'Stripe (US/EU, GDPR + DPA in place)', purpose: 'Payment processing', data: 'Customer email, billing address, card via Stripe (we never see card data)' },
   { name: 'Resend (US, GDPR + DPA in place)', purpose: 'Transactional email delivery', data: 'Recipient email and the body of messages we send (magic links, alerts, digests)' },
   { name: 'Cloudflare R2 (EU region)', purpose: 'Encrypted backup storage', data: 'Postgres dumps, encrypted' },

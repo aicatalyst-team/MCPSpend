@@ -97,7 +97,7 @@ export default function PrivacyPage() {
                 + the contents of the message we send you. <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">Resend Privacy</a>.
               </li>
               <li>
-                <strong>Coolify on a Hetzner VPS</strong> (Germany, EU) — application
+                <strong>Coolify on a Hostinger VPS</strong> (EU region) — application
                 hosting + Postgres database. No direct user-facing role.
               </li>
             </ul>
