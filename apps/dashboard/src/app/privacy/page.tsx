@@ -140,11 +140,23 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-white">Cookies</h2>
+            <h2 className="text-xl font-semibold text-white">Cookies & analytics</h2>
             <p className="mt-2">
-              MCPSpend uses a single authentication cookie to keep you signed in. No
-              advertising or analytics cookies. We don&apos;t use Google Analytics or any
-              third-party tracker on the application.
+              MCPSpend uses a single authentication cookie to keep you signed in.
+            </p>
+            <p className="mt-3">
+              We use <strong>Google Analytics 4</strong> (measurement ID G-R9HSHBNZ8Q) on
+              the marketing pages to understand which content brings developers in. We
+              configure it with <code className="text-xs text-brand-300">anonymize_ip: true</code>{' '}
+              and <code className="text-xs text-brand-300">allow_ad_personalization_signals: false</code>,
+              so we don&apos;t feed any audience into Google Ads. Logged-in dashboard
+              actions are NOT sent to Google — analytics only fires on public pages.
+              You can block it with any standard browser tracker blocker or by
+              disabling JavaScript.
+            </p>
+            <p className="mt-3">
+              No other third-party tracker, advertising pixel, or session-replay tool
+              runs on the application.
             </p>
           </section>
 
