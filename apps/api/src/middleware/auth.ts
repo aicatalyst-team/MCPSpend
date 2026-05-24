@@ -16,12 +16,24 @@ export interface AuthRequest extends Request {
 export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization
 
-  if (!authHeader?.startsWith('Bearer ')) {
+  // Token resolution order: Authorization header > ?token= query param (SSE
+  // fallback because EventSource can't set headers) > 401. Same for orgId via
+  // header X-Organization-Id or ?orgId= query param.
+  let token: string | null = null
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.replace('Bearer ', '').trim()
+  } else if (typeof req.query.token === 'string' && req.query.token.length > 0) {
+    token = req.query.token
+  }
+  if (!token) {
     res.status(401).json({ error: 'Missing authorization header' })
     return
   }
 
-  const token = authHeader.replace('Bearer ', '').trim()
+  // Allow ?orgId= as alternative to X-Organization-Id (same SSE constraint).
+  if (typeof req.query.orgId === 'string' && req.query.orgId.length > 0 && !req.headers['x-organization-id']) {
+    req.headers['x-organization-id'] = req.query.orgId
+  }
 
   // API key path: proxy authenticates here
   if (token.startsWith('mcps_')) {

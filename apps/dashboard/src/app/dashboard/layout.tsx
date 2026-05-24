@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { api, auth, ApiError } from '@/lib/api'
+import { LiveTicker } from '@/components/dashboard/LiveTicker'
 
 interface Membership {
   role: string
@@ -194,6 +195,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
         <div className="p-4 md:p-8">{children}</div>
       </main>
+
+      {/* Floating live tool-call ticker — bottom-right, desktop only.
+          THE activation moment: when a new user just installed the proxy and
+          stares at an empty dashboard, the first event lands here in real-time
+          instead of after a polling refresh. */}
+      <LiveTicker />
     </div>
   )
 }

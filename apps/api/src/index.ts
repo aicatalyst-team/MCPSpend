@@ -16,6 +16,7 @@ import { auditRouter } from './routes/audit'
 import { accountRouter } from './routes/account'
 import { webhookSubscriptionsRouter } from './routes/webhooks-mgmt'
 import { publicStatusRouter } from './routes/public-status'
+import { liveRouter } from './routes/live'
 import { internalRouter } from './routes/internal'
 import { mcpRouter } from './routes/mcp'
 import { webhookRouter } from './routes/webhooks'
@@ -107,6 +108,7 @@ app.use('/api/audit', authMiddleware, auditRouter)      // org-scoped audit log 
 app.use('/api/account', authMiddleware, accountRouter)  // GDPR Art. 15/17/20 — export + delete (all plans)
 app.use('/api/webhook-subscriptions', authMiddleware, webhookSubscriptionsRouter)  // customer-defined webhooks for events
 app.use('/api/public/status', publicStatusRouter)        // public uptime data (no auth) for /status page
+app.use('/api/stats/live', authMiddleware, liveRouter)   // SSE — live tool call stream for dashboard ticker
 app.use('/api/internal', internalRouter)                // CI/CD: redeploy via DEPLOY_SECRET header (no JWT)
 // MCP-over-HTTP endpoint. Auth is handled INSIDE the router because the
 // `initialize` and `tools/list` methods are part of the public handshake (any

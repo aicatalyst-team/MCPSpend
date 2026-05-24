@@ -1,7 +1,7 @@
 import { Worker, Job } from 'bullmq'
 import { queueConnection, ToolCallPayload } from './lib/queue'
 import { prisma } from './lib/prisma'
-import { cacheDelPattern } from './lib/redis'
+import { cacheDelPattern, publishLiveEvent } from './lib/redis'
 import { startMaintenanceScheduler } from './lib/maintenance'
 
 const BATCH_SIZE = 100
@@ -87,6 +87,24 @@ async function flushBatch() {
       })),
       skipDuplicates: true,
     })
+
+    // Fan out live events to the SSE ticker. One publish per call so the user
+    // sees them stream in instead of in batches of 100. Fire-and-forget; if
+    // Redis hiccups the dashboard just misses a few events (data still saved).
+    void Promise.all(
+      toProcess.map((p) =>
+        publishLiveEvent(p.organizationId, {
+          type: 'tool-call',
+          serverName: p.serverName,
+          toolName: p.toolName,
+          model: p.model,
+          costUsd: p.costUsd,
+          latencyMs: p.latencyMs,
+          success: p.success,
+          calledAt: p.calledAt,
+        }),
+      ),
+    )
 
     const statsMap = new Map<string, {
       organizationId: string; projectId: string; date: Date
