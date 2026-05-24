@@ -1,9 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { api, ApiError, apiDownload, auth } from '@/lib/api'
 import { useRouter } from 'next/navigation'
 import { Onboarding } from '@/components/dashboard/Onboarding'
+import { buildDemoOverview } from '@/lib/demoData'
 
 interface Overview {
   daily: { date: string; _sum: { costUsd: number | null; callCount: number | null } }[]
@@ -18,6 +20,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  // Lets the user toggle between live (empty) and demo data when they have
+  // no real calls yet. Default: ON until first real call lands, then off
+  // forever for that browser.
+  const [showDemo, setShowDemo] = useState(true)
 
   useEffect(() => {
     api<Overview>('/api/stats/overview?days=30')
@@ -27,6 +33,11 @@ export default function DashboardPage() {
       })
       .finally(() => setLoading(false))
   }, [router])
+
+  useEffect(() => {
+    // Once we've seen a real call, lock the demo banner off.
+    if (overview && (overview.totals.callCount ?? 0) > 0) setShowDemo(false)
+  }, [overview])
 
   async function downloadCsv() {
     setDownloading(true); setDownloadError(null)
@@ -50,14 +61,56 @@ export default function DashboardPage() {
     </div>
   )
 
-  const totals = overview?.totals
-  const daily = overview?.daily ?? []
-  const callCount = totals?.callCount ?? 0
-  const hasData = callCount > 0
+  const liveTotals = overview?.totals
+  const liveDaily = overview?.daily ?? []
+  const liveCallCount = liveTotals?.callCount ?? 0
+  const hasRealData = liveCallCount > 0
 
-  // No real data yet → show the onboarding stepper instead of an empty dashboard.
-  if (!hasData) {
-    return <Onboarding />
+  // Empty state strategy: instead of showing a blank dashboard or the bare
+  // onboarding stepper, we render the FULL dashboard layout pre-populated
+  // with demo data and a banner that turns it into a teaser ("here's what
+  // your dashboard will look like"). User picks: see the setup steps or
+  // explore the demo first. Either path leads to install + first call.
+  if (!hasRealData && showDemo) {
+    const demo = buildDemoOverview(30)
+    return (
+      <div className="space-y-6">
+        {/* Demo banner — the critical signal that this isn't real */}
+        <div className="rounded-2xl border border-brand-500/30 bg-gradient-to-r from-brand-500/10 to-brand-500/5 p-5 flex items-start gap-4 flex-wrap">
+          <span className="text-2xl">📺</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-brand-200 font-semibold">This is demo data — your dashboard will look exactly like this once your agent makes its first MCP call.</p>
+            <p className="text-brand-300/80 text-sm mt-1">
+              Run <code className="text-xs bg-gray-950 px-1.5 py-0.5 rounded text-brand-200">npx @mcpspend/proxy@latest init --key …</code> in your terminal, then restart your MCP client.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowDemo(false)}
+              className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            >
+              Set me up →
+            </button>
+          </div>
+        </div>
+
+        <DashboardView overview={demo} demo />
+      </div>
+    )
+  }
+
+  if (!hasRealData) {
+    return (
+      <div className="space-y-4">
+        <button
+          onClick={() => setShowDemo(true)}
+          className="text-sm text-brand-400 hover:text-brand-300 inline-flex items-center gap-1.5"
+        >
+          ← Back to demo dashboard preview
+        </button>
+        <Onboarding />
+      </div>
+    )
   }
 
   return (
@@ -79,21 +132,44 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      <DashboardView overview={{ totals: liveTotals!, daily: liveDaily, topTools: overview?.topTools ?? [], topServers: overview?.topServers ?? [] }} />
+    </div>
+  )
+}
+
+// Shared layout — fed either by live data (default) or demo data (empty-state
+// hero). Extracted so we don't duplicate the chart + table markup.
+interface ViewProps {
+  overview: {
+    totals: { costUsd: number | null; callCount: number | null; inputTokens: number | null; outputTokens: number | null; errorCount: number | null }
+    daily: { date: string; _sum: { costUsd: number | null; callCount: number | null } }[]
+    topTools: { toolName: string; serverName: string | null; _sum: { costUsd: number | null; callCount: number | null } }[]
+    topServers: { serverName: string; _sum: { costUsd: number | null; callCount: number | null } }[]
+  }
+  demo?: boolean
+}
+
+function DashboardView({ overview, demo }: ViewProps) {
+  const totals = overview.totals
+  const daily = overview.daily
+  const callCount = totals.callCount ?? 0
+  return (
+    <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total cost (30d)', value: `$${(totals?.costUsd ?? 0).toFixed(4)}` },
+          { label: 'Total cost (30d)', value: `$${(totals.costUsd ?? 0).toFixed(4)}` },
           { label: 'Tool calls (30d)', value: callCount.toLocaleString() },
-          { label: 'Input tokens', value: ((totals?.inputTokens ?? 0) / 1000).toFixed(1) + 'K' },
-          { label: 'Error rate', value: callCount ? `${(((totals?.errorCount ?? 0) / callCount) * 100).toFixed(1)}%` : '—' },
+          { label: 'Input tokens', value: ((totals.inputTokens ?? 0) / 1000).toFixed(1) + 'K' },
+          { label: 'Error rate', value: callCount ? `${(((totals.errorCount ?? 0) / callCount) * 100).toFixed(1)}%` : '—' },
         ].map(({ label, value }) => (
-          <div key={label} className="bg-gray-900 border border-white/5 rounded-xl p-4">
+          <div key={label} className={'bg-gray-900 border border-white/5 rounded-xl p-4 ' + (demo ? 'opacity-95' : '')}>
             <p className="text-xs text-gray-400">{label}</p>
             <p className="text-2xl font-bold mt-1 text-white">{value}</p>
           </div>
         ))}
       </div>
 
-      <div className="bg-gray-900 border border-white/5 rounded-xl p-4">
+      <div className="bg-gray-900 border border-white/5 rounded-xl p-4 mt-6">
         <h2 className="text-sm font-semibold text-gray-300 mb-4">Daily cost — last 30 days</h2>
         {daily.length === 0
           ? <p className="text-gray-500 text-sm py-8 text-center">No daily totals yet — wait a few more minutes for the worker to aggregate.</p>
@@ -115,11 +191,11 @@ export default function DashboardPage() {
         }
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-4 mt-6">
         <div className="bg-gray-900 border border-white/5 rounded-xl p-4">
           <h2 className="text-sm font-semibold text-gray-300 mb-3">Top tools by cost</h2>
           <div className="space-y-2">
-            {(overview?.topTools ?? []).slice(0, 8).map((t, i) => (
+            {overview.topTools.slice(0, 8).map((t, i) => (
               <div key={i} className="flex justify-between items-center text-sm">
                 <span className="text-gray-300 truncate">{t.serverName ?? '—'}/{t.toolName}</span>
                 <span className="text-brand-400 font-mono ml-2">${(t._sum.costUsd ?? 0).toFixed(5)}</span>
@@ -130,7 +206,7 @@ export default function DashboardPage() {
         <div className="bg-gray-900 border border-white/5 rounded-xl p-4">
           <h2 className="text-sm font-semibold text-gray-300 mb-3">Top servers by cost</h2>
           <div className="space-y-2">
-            {(overview?.topServers ?? []).slice(0, 8).map((s, i) => (
+            {overview.topServers.slice(0, 8).map((s, i) => (
               <div key={i} className="flex justify-between items-center text-sm">
                 <span className="text-gray-300">{s.serverName}</span>
                 <span className="text-brand-400 font-mono ml-2">${(s._sum.costUsd ?? 0).toFixed(5)}</span>
@@ -139,6 +215,14 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+
+      {demo && (
+        <p className="text-center text-xs text-gray-500 mt-4">
+          Numbers above are illustrative. Your dashboard will show your real MCP usage.
+          {' '}
+          <Link href="/dashboard/keys" className="text-brand-400 hover:underline">Get your API key →</Link>
+        </p>
+      )}
+    </>
   )
 }
