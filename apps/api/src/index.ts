@@ -14,6 +14,7 @@ import { exportRouter } from './routes/export'
 import { adminRouter } from './routes/admin'
 import { auditRouter } from './routes/audit'
 import { accountRouter } from './routes/account'
+import { webhookSubscriptionsRouter } from './routes/webhooks-mgmt'
 import { internalRouter } from './routes/internal'
 import { mcpRouter } from './routes/mcp'
 import { webhookRouter } from './routes/webhooks'
@@ -103,6 +104,7 @@ app.use('/api/export', authMiddleware, exportRouter)    // CSV (Pro+)
 app.use('/api/admin', authMiddleware, adminRouter)      // platform-owner view (SUPER_ADMIN_EMAILS)
 app.use('/api/audit', authMiddleware, auditRouter)      // org-scoped audit log (Team+)
 app.use('/api/account', authMiddleware, accountRouter)  // GDPR Art. 15/17/20 — export + delete (all plans)
+app.use('/api/webhook-subscriptions', authMiddleware, webhookSubscriptionsRouter)  // customer-defined webhooks for events
 app.use('/api/internal', internalRouter)                // CI/CD: redeploy via DEPLOY_SECRET header (no JWT)
 // MCP-over-HTTP endpoint. Auth is handled INSIDE the router because the
 // `initialize` and `tools/list` methods are part of the public handshake (any

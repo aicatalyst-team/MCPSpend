@@ -63,6 +63,8 @@ model Organization {
   toolCalls    ToolCall[]
   dailyStats   DailyStats[]
   auditLogs    AuditLog[]
+  webhooks     Webhook[]
+  webhookEvents WebhookEvent[]
 }
 
 // Compatibility report sent anonymously by the proxy CLI on init/doctor.
@@ -282,6 +284,56 @@ model IngestError {
   error     String
   retries   Int      @default(0)
   createdAt DateTime @default(now())
+}
+
+// ─── Webhooks — customer-defined POST endpoints for events ──
+//
+// Lets enterprises wire MCPSpend into PagerDuty, Datadog, custom systems,
+// Zapier, etc. without us having to ship a native integration per vendor.
+// Each event delivery is HMAC-SHA256 signed with `secret` so the receiver
+// can verify authenticity (X-MCPSpend-Signature header).
+model Webhook {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  label           String       // user-facing name, e.g. "PagerDuty critical"
+  targetUrl       String       // https://… — POSTed on every matched event
+  secret          String       // signing secret (random 32-byte hex, shown once)
+  events          String[]     // event types subscribed to: budget.alert, spend.alert, key.revoke, etc.
+  isActive        Boolean      @default(true)
+  // Stats — bumped from the dispatcher so the dashboard can show
+  // last-delivery status without joining WebhookEvent on every render.
+  lastDeliveryAt  DateTime?
+  lastDeliveryStatus Int?      // HTTP code from the most recent attempt
+  consecutiveFailures Int     @default(0)
+  createdByUserId String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  deliveries      WebhookEvent[]
+
+  @@index([organizationId])
+}
+
+// Audit-style log of every delivery attempt. Used by the dashboard to show
+// "last 100 events" + by the auto-disable logic that pauses a webhook after
+// too many consecutive failures.
+model WebhookEvent {
+  id              String       @id @default(cuid())
+  webhookId       String
+  webhook         Webhook      @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  eventType       String       // budget.alert, spend.alert, anomaly.detected, etc.
+  payload         Json
+  httpStatus      Int?         // null = network error before we got a response
+  responseBody    String?      // first 500 chars of response, for debugging
+  attempts        Int          @default(1)
+  succeeded       Boolean
+  createdAt       DateTime     @default(now())
+
+  @@index([webhookId, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc)])
 }
 
 enum Plan {

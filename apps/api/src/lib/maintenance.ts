@@ -16,6 +16,7 @@ import {
   activationDay2Email, activationDay5Email, reactivationDay14Email,
 } from '../emails/templates'
 import { decrypt } from './crypto'
+import { dispatchWebhook } from './webhooks'
 
 const RETENTION_DAYS: Record<string, number | null> = {
   FREE: 7,
@@ -152,6 +153,20 @@ export async function runSpendAlerts(): Promise<{ orgId: string; level: SpendLev
       if (ok) channels.push('slack')
     }
 
+    // Customer webhooks subscribed to spend.alert get the same event with
+    // the structured payload PagerDuty / Datadog / Zapier expect.
+    void dispatchWebhook({
+      organizationId: org.id,
+      eventType: 'spend.alert',
+      payload: {
+        organizationName: org.name,
+        level, percentUsed: Math.round(percent),
+        spendUsd: spend, budgetUsd: org.monthlyBudgetUsd,
+        dashboardUrl: `${dashboardUrl}/dashboard/billing`,
+      },
+    })
+    channels.push('webhook')
+
     await prisma.organization.update({
       where: { id: org.id },
       data: { lastSpendAlertAt: now, lastSpendAlertLevel: level },
@@ -230,6 +245,20 @@ export async function runBudgetAlerts(): Promise<{ orgId: string; level: AlertLe
       })
       if (ok) channels.push('slack')
     }
+
+    // Customer webhooks subscribed to budget.alert
+    void dispatchWebhook({
+      organizationId: org.id,
+      eventType: 'budget.alert',
+      payload: {
+        organizationName: org.name,
+        level, percentUsed: Math.round(percent),
+        callsThisMonth: org.callsThisMonth,
+        callsLimit: org.callsLimit,
+        dashboardUrl: `${dashboardUrl}/dashboard/billing`,
+      },
+    })
+    channels.push('webhook')
 
     await prisma.organization.update({
       where: { id: org.id },
