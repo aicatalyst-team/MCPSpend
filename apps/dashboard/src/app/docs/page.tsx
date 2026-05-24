@@ -196,6 +196,19 @@ const SECTIONS: Array<{ title: string; description: string; endpoints: Endpoint[
     ],
   },
   {
+    title: 'Slack slash commands',
+    description: 'Query MCPSpend from any Slack channel. Setup: Slack workspace → Add app → Slash Command → URL points at /api/slack/cmd?key=mcps_live_xxx. No OAuth dance.',
+    endpoints: [
+      {
+        method: 'POST',
+        path: '/api/slack/cmd?key=mcps_live_…',
+        summary: 'Slash command endpoint. Subcommands: today, top [days], budget, help.',
+        auth: 'apikey',
+        notes: 'Slack posts form-encoded; we respond with Block Kit JSON within 3s. Use a dedicated API key per workspace if you want to revoke independently.',
+      },
+    ],
+  },
+  {
     title: 'GitHub Action',
     description: 'Drop-in workflow that posts an MCPSpend cost summary on every PR — the team sees agent spend at the same place they review code.',
     endpoints: [
