@@ -1,6 +1,6 @@
 {
   "name": "@mcpspend/mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "mcpName": "io.github.andreisirbu91-lab/mcpspend",
   "description": "Query your MCPSpend usage from any MCP client. Exposes get_today_cost, list_top_tools, recent_sessions, and budget tools.",
   "license": "MIT",
