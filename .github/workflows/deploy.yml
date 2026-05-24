@@ -114,10 +114,40 @@ jobs:
             exit 1
           fi
 
+  # After the API + Dashboard are live, ping Smithery so its catalog picks up
+  # any change to smithery.yaml / server-card.json (try_demo tool, useCases,
+  # exampleConfigs, descriptions). Without this Smithery still re-scans on its
+  # own ~daily — the ping just collapses the lag to seconds.
+  #
+  # Auth: SMITHERY_API_KEY secret (managed in GitHub Actions Secrets).
+  # The Smithery CLI does the right thing here — it reads smithery.yaml from
+  # the repo we just deployed and tells Smithery to re-fetch.
+  smithery-publish:
+    name: Smithery republish
+    runs-on: ubuntu-latest
+    needs: [deploy-api, deploy-dashboard]
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Republish to Smithery
+        env:
+          SMITHERY_API_KEY: ${{ secrets.SMITHERY_API_KEY }}
+        run: |
+          if [ -z "$SMITHERY_API_KEY" ]; then
+            echo "::warning::SMITHERY_API_KEY not set — skipping Smithery republish"
+            exit 0
+          fi
+          # Use the CLI to refresh the listing. --yes skips confirmations.
+          npx -y @smithery/cli@latest publish --api-key "$SMITHERY_API_KEY" --yes 2>&1 || {
+            echo "::warning::Smithery republish failed — catalog will re-scan within ~24h anyway"
+            exit 0
+          }
+          echo "Smithery republish triggered."
+
   notify:
     name: Deploy complete
     runs-on: ubuntu-latest
-    needs: [deploy-api, deploy-worker, deploy-dashboard]
+    needs: [deploy-api, deploy-worker, deploy-dashboard, smithery-publish]
     if: always()
     steps:
       - name: Status
@@ -125,3 +155,4 @@ jobs:
           echo "API: ${{ needs.deploy-api.result }}"
           echo "Worker: ${{ needs.deploy-worker.result }}"
           echo "Dashboard: ${{ needs.deploy-dashboard.result }}"
+          echo "Smithery: ${{ needs.smithery-publish.result }}"
