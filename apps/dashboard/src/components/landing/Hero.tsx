@@ -19,7 +19,7 @@ export function Hero() {
           Free tier · 25,000 tool calls/month, forever
         </div>
 
-        <h1 className="text-5xl md:text-7xl font-semibold tracking-tighter text-white leading-[1.05]">
+        <h1 className="text-4xl sm:text-5xl md:text-7xl font-semibold tracking-tighter text-white leading-[1.05]">
           Know what every<br />
           <span className="bg-gradient-to-br from-brand-400 via-brand-500 to-brand-700 bg-clip-text text-transparent">
             MCP call costs you.

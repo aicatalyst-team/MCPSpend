@@ -207,16 +207,19 @@ function TopCustomersTile() {
         {data.map((c) => {
           const bar = (c.costUsd / max) * 100
           return (
-            <div key={c.customerLabel} className="grid grid-cols-[1fr_auto_1fr_auto] gap-3 items-center text-sm">
+            <div
+              key={c.customerLabel}
+              className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_1fr_auto] gap-3 items-center text-sm"
+            >
               <span className="font-mono text-xs text-gray-300 truncate">{c.customerLabel}</span>
-              <span className="font-mono text-xs text-white tabular-nums text-right w-24">${c.costUsd.toFixed(4)}</span>
-              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <span className="font-mono text-xs text-white tabular-nums text-right">${c.costUsd.toFixed(4)}</span>
+              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden hidden sm:block">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-brand-500"
                   style={{ width: `${bar}%` }}
                 />
               </div>
-              <span className="text-xs tabular-nums text-right text-gray-500 w-16">
+              <span className="text-xs tabular-nums text-right text-gray-500 w-16 hidden sm:inline">
                 {c.callCount.toLocaleString()} calls
               </span>
             </div>
@@ -367,17 +370,20 @@ function DashboardView({ overview, demo }: ViewProps) {
               const fullName = `${t.serverName ?? ''}/${t.toolName}`
               const alert = alertToolNames.has(fullName) && i < 3
               return (
-                <div key={fullName + i} className="grid grid-cols-[1fr_auto_1fr_auto] gap-3 items-center text-sm">
+                <div
+                  key={fullName + i}
+                  className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_1fr_auto] gap-3 items-center text-sm"
+                >
                   <div className="flex items-center gap-2 min-w-0">
                     {alert && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
                     <span className={'font-mono text-xs truncate ' + (alert ? 'text-white' : 'text-gray-300')}>
                       {fullName}
                     </span>
                   </div>
-                  <div className="font-mono text-xs text-white tabular-nums text-right w-24">
+                  <div className="font-mono text-xs text-white tabular-nums text-right">
                     {fmtUsd(c)}
                   </div>
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden hidden sm:block">
                     <div
                       className={
                         'h-full rounded-full ' +
@@ -388,7 +394,7 @@ function DashboardView({ overview, demo }: ViewProps) {
                       style={{ width: `${bar}%` }}
                     />
                   </div>
-                  <div className="text-xs tabular-nums text-right text-gray-500 w-16">
+                  <div className="text-xs tabular-nums text-right text-gray-500 w-16 hidden sm:block">
                     {(t._sum.callCount ?? 0).toLocaleString()} calls
                   </div>
                 </div>
@@ -412,16 +418,19 @@ function DashboardView({ overview, demo }: ViewProps) {
               const maxServer = Math.max(...topServers.map(x => x._sum.costUsd ?? 0), 0.0001)
               const bar = (c / maxServer) * 100
               return (
-                <div key={s.serverName + i} className="grid grid-cols-[1fr_auto_1fr_auto] gap-3 items-center text-sm">
+                <div
+                  key={s.serverName + i}
+                  className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_1fr_auto] gap-3 items-center text-sm"
+                >
                   <div className="font-mono text-xs text-gray-300 truncate">{s.serverName}</div>
-                  <div className="font-mono text-xs text-white tabular-nums text-right w-24">{fmtUsd(c)}</div>
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                  <div className="font-mono text-xs text-white tabular-nums text-right">{fmtUsd(c)}</div>
+                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden hidden sm:block">
                     <div
                       className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-700"
                       style={{ width: `${bar}%` }}
                     />
                   </div>
-                  <div className="text-xs tabular-nums text-right text-gray-500 w-16">
+                  <div className="text-xs tabular-nums text-right text-gray-500 w-16 hidden sm:block">
                     {(s._sum.callCount ?? 0).toLocaleString()} calls
                   </div>
                 </div>
