@@ -6,7 +6,7 @@ import { buildSnippet, formatSnippet, SnippetClient } from './snippet.js'
 import { runHttpBridge } from './http-bridge.js'
 import { runStatsTui } from './stats-tui.js'
 
-const VERSION = '0.6.0'
+const VERSION = '0.7.0'
 
 const HELP = `mcpspend — observability proxy for MCP servers (v${VERSION})
 

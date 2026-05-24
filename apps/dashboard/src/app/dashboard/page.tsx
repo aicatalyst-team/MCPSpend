@@ -97,13 +97,18 @@ export default function DashboardPage() {
             handles the user's existing MCP setup automatically. Each card has a
             concrete config-file path so users without a guide know we know
             where their MCP config lives. Click any card → setup view. */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
           {[
             { icon: '🟠', name: 'Claude Desktop', detail: 'claude_desktop_config.json' },
             { icon: '🌀', name: 'Cursor',         detail: '~/.cursor/mcp.json' },
             { icon: '🌊', name: 'Windsurf',       detail: '~/.codeium/windsurf/' },
             { icon: '🟦', name: 'VS Code',        detail: '.vscode/mcp.json' },
-            { icon: '🧠', name: 'Claude Code',    detail: '.claude/settings.json' },
+            { icon: '🧠', name: 'Claude Code',    detail: '.mcp.json' },
+            { icon: '⚡', name: 'Zed',            detail: '~/.config/zed/' },
+            { icon: '🤖', name: 'Continue.dev',   detail: '~/.continue/config.json' },
+            { icon: '🔌', name: 'Cline',          detail: 'cline_mcp_settings.json' },
+            { icon: '🪿', name: 'Goose',          detail: '~/.config/goose/' },
+            { icon: '+',  name: 'Any stdio MCP',  detail: 'docker / npx / uvx / …' },
           ].map((ide) => (
             <button
               key={ide.name}

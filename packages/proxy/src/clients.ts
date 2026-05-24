@@ -17,7 +17,9 @@ export interface ClientConfig {
 }
 
 export interface ClientDefinition {
-  id: 'claude-desktop' | 'cursor' | 'windsurf' | 'vscode' | 'vscode-workspace' | 'claude-code'
+  id:
+    | 'claude-desktop' | 'cursor' | 'windsurf' | 'vscode' | 'vscode-workspace' | 'claude-code'
+    | 'zed' | 'continue' | 'cline' | 'goose'
   name: string
   // Absolute paths that may hold this client's MCP config. First existing one wins.
   configPaths: () => string[]
@@ -118,6 +120,64 @@ export const CLIENTS: ClientDefinition[] = [
       join(home, '.claude.json'),
       join(process.cwd(), '.mcp.json'),
     ],
+  },
+  {
+    // Zed editor — fast-growing Rust-based editor with native MCP support.
+    // Config lives in ~/.config/zed/settings.json under `context_servers`.
+    id: 'zed',
+    name: 'Zed',
+    configPaths: () => {
+      const candidates: string[] = []
+      if (isMac) candidates.push(join(home, '.config', 'zed', 'settings.json'))
+      else if (isWin) candidates.push(join(appData(), 'Zed', 'settings.json'))
+      else candidates.push(join(process.env.XDG_CONFIG_HOME || join(home, '.config'), 'zed', 'settings.json'))
+      return candidates
+    },
+    serversKey: 'context_servers',
+  },
+  {
+    // Continue.dev — popular open-source AI coding assistant. Works in both
+    // VS Code and JetBrains. Reads MCP config from ~/.continue/config.json
+    // under the `experimental.modelContextProtocolServers` key in older
+    // versions, `mcpServers` in newer. We support both.
+    id: 'continue',
+    name: 'Continue.dev',
+    configPaths: () => [
+      join(home, '.continue', 'config.json'),
+      // Workspace-scoped variant
+      join(process.cwd(), '.continue', 'config.json'),
+    ],
+    // Continue stores other settings even when MCP isn't configured, so the
+    // file presence alone is the install marker.
+  },
+  {
+    // Cline — VS Code extension (formerly Claude Dev). MCP config lives at
+    // ~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json
+    // (similar location under appData on Windows/Linux).
+    id: 'cline',
+    name: 'Cline (VS Code)',
+    configPaths: () => {
+      const base = isMac
+        ? join(home, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings')
+        : isWin
+          ? join(appData(), 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings')
+          : join(home, '.config', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings')
+      return [join(base, 'cline_mcp_settings.json')]
+    },
+  },
+  {
+    // Goose — Block's open-source AI agent CLI. Config at ~/.config/goose/config.yaml
+    // BUT goose also reads JSON via `~/.config/goose/profiles.json` for MCP
+    // servers in newer versions. We patch the JSON variant since YAML rewriting
+    // is out of scope; Goose users on YAML get a snippet from `mcpspend snippet`.
+    id: 'goose',
+    name: 'Goose',
+    configPaths: () => {
+      const base = isWin
+        ? join(appData(), 'goose')
+        : join(home, '.config', 'goose')
+      return [join(base, 'mcp_servers.json'), join(base, 'profiles.json')]
+    },
   },
 ]
 
