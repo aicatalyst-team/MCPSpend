@@ -1,0 +1,11 @@
+# MCPSpend Security Contact (RFC 9116)
+# https://mcpspend.com/.well-known/security.txt
+
+Contact: mailto:security@mcpspend.com
+Contact: https://github.com/andreisirbu91-lab/MCPSpend/security/advisories/new
+Expires: 2027-05-24T00:00:00.000Z
+Preferred-Languages: en, ro
+Canonical: https://mcpspend.com/.well-known/security.txt
+Policy: https://github.com/andreisirbu91-lab/MCPSpend/blob/main/SECURITY.md
+Acknowledgments: https://github.com/andreisirbu91-lab/MCPSpend/blob/main/SECURITY.md#acknowledgements
+Hiring: https://mcpspend.com

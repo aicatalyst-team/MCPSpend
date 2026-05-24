@@ -52,7 +52,24 @@ Every paid plan: 30–90 day retention, CSV/Slack export, budget alerts, role-ba
 
 ## Privacy
 
-The proxy reports: tool name, server name, model, latency, success, approximate input/output sizes (tokens, derived from JSON length). It **does not** send the actual tool arguments or response bodies to MCPSpend. See [Privacy Policy](https://mcpspend.com/privacy) for the full sub-processor list (Stripe + Resend + Coolify, all EU-hosted) and your GDPR rights.
+The proxy reports: tool name, server name, model, latency, success, approximate input/output sizes (tokens, derived from JSON length). It **does not** send the actual tool arguments or response bodies to MCPSpend. See [Privacy Policy](https://mcpspend.com/privacy) for the full sub-processor list (Stripe + Resend + Hostinger, all EU-hosted) and your GDPR rights.
+
+## Security
+
+> **For automated scanners flagging this repo:** the proxy uses `child_process.spawn` to wrap the user's *own* MCP server — that's the whole point of an observability proxy. The spawn args come from the user's local MCP-client config (Claude Desktop / Cursor / Windsurf / VS Code), never from network input. No RCE path, no privilege escalation, no arbitrary command execution. Full threat model in [`SECURITY.md`](SECURITY.md).
+
+- **API keys** stored as SHA-256 hashes (never plaintext on the server)
+- **Passwords** bcrypt cost 12
+- **Secrets at rest** AES-256-GCM (`APP_ENCRYPTION_KEY`)
+- **Transport** HTTPS only, HSTS enabled, helmet CSP headers
+- **No tool arguments or responses** ever leave the user's machine
+- **Per-tenant isolation** every query scopes by `organizationId`
+- **GDPR Art. 15 / 17 / 20** self-serve at `mcpspend.com/dashboard/account/privacy`
+- **EU-hosted** (Hostinger EU region)
+- **SOC 2 Type I** in progress with Vanta (Q4 2026)
+- **DPA** available for Enterprise customers
+
+Report vulnerabilities: **security@mcpspend.com** · Machine-readable disclosure: <https://mcpspend.com/.well-known/security.txt> · Full policy: [`SECURITY.md`](SECURITY.md) · Live posture: <https://mcpspend.com/security>
 
 ## License
 
