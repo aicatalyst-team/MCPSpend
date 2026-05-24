@@ -1,14 +1,35 @@
-// Google Analytics 4 — loaded after the page is interactive so it never
-// blocks first paint. The measurement ID is hard-coded because gtag only
-// accepts a static value (and it's a public ID anyway — visible in any
-// browser's network tab). We turn off ad-personalization signals to keep
-// our footprint as small as the GDPR conversation allows.
+'use client'
+
+// Google Analytics 4 — loaded ONLY after the user explicitly accepts cookies.
+// Per GDPR + ePrivacy Directive, non-essential trackers must wait for opt-in.
+//
+// Wire:
+//   - Visit 1: CookieConsentBanner renders; consent === null; this component
+//     does nothing. gtag.js is never requested.
+//   - User clicks "Accept": banner stores consent, dispatches
+//     'mcpspend:consent-changed'. We re-read consent, fall through to
+//     loading gtag.
+//   - User clicks "Decline": consent === 'declined'; we do not load gtag.
+//     Re-check on every consent-changed event so a later opt-in flips it on.
 
 import Script from 'next/script'
+import { useEffect, useState } from 'react'
+import { readConsent, type ConsentStatus } from './CookieConsentBanner'
 
 const GA_ID = 'G-R9HSHBNZ8Q'
 
 export function GoogleAnalytics() {
+  const [consent, setConsent] = useState<ConsentStatus>(null)
+
+  useEffect(() => {
+    setConsent(readConsent())
+    const handler = () => setConsent(readConsent())
+    window.addEventListener('mcpspend:consent-changed', handler)
+    return () => window.removeEventListener('mcpspend:consent-changed', handler)
+  }, [])
+
+  if (consent !== 'accepted') return null
+
   return (
     <>
       <Script
@@ -21,9 +42,6 @@ export function GoogleAnalytics() {
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
           gtag('config', '${GA_ID}', {
-            // Minimise the data we ship. IP gets hashed/truncated by Google
-            // anyway in GA4, but allow_ad_personalization_signals: false makes
-            // sure we don't end up in Google Ads audiences by accident.
             allow_ad_personalization_signals: false,
             anonymize_ip: true,
           });

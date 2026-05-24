@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { GoogleAnalytics } from '@/components/GoogleAnalytics'
+import { CookieConsentBanner } from '@/components/CookieConsentBanner'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://mcpspend.com'),
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-gray-950 text-gray-100 antialiased">
         {children}
         <GoogleAnalytics />
+        <CookieConsentBanner />
       </body>
     </html>
   )

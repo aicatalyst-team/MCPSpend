@@ -145,14 +145,21 @@ export default function PrivacyPage() {
               MCPSpend uses a single authentication cookie to keep you signed in.
             </p>
             <p className="mt-3">
-              We use <strong>Google Analytics 4</strong> (measurement ID G-R9HSHBNZ8Q) on
-              the marketing pages to understand which content brings developers in. We
-              configure it with <code className="text-xs text-brand-300">anonymize_ip: true</code>{' '}
+              We use <strong>Google Analytics 4</strong> (measurement ID G-R9HSHBNZ8Q)
+              <strong> only after you click Accept</strong> on the cookie consent
+              banner shown on your first visit. If you click Decline (or never see
+              the banner because of a tracker blocker), gtag.js is never requested
+              and no analytics events are sent.
+            </p>
+            <p className="mt-3">
+              When loaded, GA4 is configured with{' '}
+              <code className="text-xs text-brand-300">anonymize_ip: true</code>{' '}
               and <code className="text-xs text-brand-300">allow_ad_personalization_signals: false</code>,
-              so we don&apos;t feed any audience into Google Ads. Logged-in dashboard
-              actions are NOT sent to Google — analytics only fires on public pages.
-              You can block it with any standard browser tracker blocker or by
-              disabling JavaScript.
+              so we don&apos;t feed any audience into Google Ads. You can withdraw
+              consent any time by clearing the <code className="text-xs text-brand-300">mcpspend_cookie_consent</code>{' '}
+              localStorage key in your browser, after which the banner reappears
+              on your next visit. Consent automatically expires after 12 months and
+              we ask again.
             </p>
             <p className="mt-3">
               No other third-party tracker, advertising pixel, or session-replay tool
