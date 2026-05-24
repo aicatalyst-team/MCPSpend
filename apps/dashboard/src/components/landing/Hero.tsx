@@ -70,6 +70,38 @@ export function Hero() {
             </li>
           ))}
         </ul>
+
+        {/* Trust strip — addresses SEETO AI's "Trust Signals 45/100" review.
+            Real-time badges from the registries we actually publish on.
+            Linked so visitors can verify the numbers themselves. */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-2 text-xs">
+          <a href="https://www.npmjs.com/package/@mcpspend/proxy" target="_blank" rel="noopener noreferrer" aria-label="npm package">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://img.shields.io/npm/v/@mcpspend/proxy.svg?label=npm&color=cb3837" alt="npm version" height={20} />
+          </a>
+          <a href="https://www.npmjs.com/package/@mcpspend/proxy" target="_blank" rel="noopener noreferrer" aria-label="npm downloads">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://img.shields.io/npm/dm/@mcpspend/proxy.svg?label=downloads&color=blue" alt="npm downloads" height={20} />
+          </a>
+          <a href="https://github.com/andreisirbu91-lab/MCPSpend" target="_blank" rel="noopener noreferrer" aria-label="GitHub repo">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://img.shields.io/github/stars/andreisirbu91-lab/MCPSpend?style=flat&logo=github&color=181717" alt="GitHub stars" height={20} />
+          </a>
+          <a href="https://smithery.ai/servers/andreisirbu91-lab/mcpspend" target="_blank" rel="noopener noreferrer" aria-label="Smithery server">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://smithery.ai/badge/andreisirbu91-lab/mcpspend" alt="Smithery" height={20} />
+          </a>
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-gray-400 bg-white/5 border border-white/10 font-medium">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6l-8-4z"/></svg>
+            Stripe-secured
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-gray-400 bg-white/5 border border-white/10 font-medium">
+            MIT licensed
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-gray-400 bg-white/5 border border-white/10 font-medium">
+            🇪🇺 EU-hosted
+          </span>
+        </div>
       </div>
 
       <div className="relative mt-16 px-4 md:px-6">
