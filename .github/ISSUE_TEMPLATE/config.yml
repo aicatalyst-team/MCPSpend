@@ -1,0 +1,14 @@
+# Disable blank issues — force users into one of the templates so we get the
+# context we need. Adds quick links for things that should NOT be in issues.
+blank_issues_enabled: false
+
+contact_links:
+  - name: 🔒 Security vulnerability
+    url: mailto:security@mcpspend.com
+    about: Please report security issues privately, not in public GitHub issues.
+  - name: 💬 Questions / help
+    url: https://github.com/andreisirbu91-lab/MCPSpend/discussions
+    about: General questions go in Discussions, not issues.
+  - name: 📖 Docs / pricing / privacy
+    url: https://mcpspend.com
+    about: Product docs, pricing, privacy policy, status page.

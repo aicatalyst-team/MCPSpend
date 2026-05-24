@@ -1,0 +1,50 @@
+name: 💡 Feature request
+description: Suggest something MCPSpend should do that it doesn't yet
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case, not the solution. Helps us spot existing features that already cover it.
+      placeholder: "When my agent uses Playwright MCP, I want to ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would the ideal solution look like?
+      placeholder: "A new dashboard chart that ... / a new proxy flag that ... / a webhook for ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      placeholder: "I tried doing X manually but ..."
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Which part of MCPSpend?
+      options:
+        - "@mcpspend/proxy"
+        - "@mcpspend/mcp-server"
+        - "mcpspend-vscode extension"
+        - "Dashboard"
+        - "API / data model"
+        - "Docs"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: willing-to-help
+    attributes:
+      label: Are you willing to help?
+      options:
+        - label: I'd be willing to open a PR for this
+        - label: I'd be willing to test a beta

@@ -1,0 +1,89 @@
+name: 🐛 Bug report
+description: Something is wrong with MCPSpend (proxy, API, dashboard, extension)
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this! For **security vulnerabilities**, please email
+        `security@mcpspend.com` instead of opening a public issue.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which part of MCPSpend?
+      options:
+        - "@mcpspend/proxy (CLI / stdio wrapper)"
+        - "@mcpspend/mcp-server (queryable MCP server)"
+        - "mcpspend-vscode extension"
+        - "Dashboard (mcpspend.com)"
+        - "API (api.mcpspend.com)"
+        - "Docs / README"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug. Paste the full error message if there is one.
+      placeholder: "I ran `npx @mcpspend/proxy add` and ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      placeholder: "It should have ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: MCPSpend version
+      description: Output of `npx @mcpspend/proxy --version`, or extension/dashboard version
+      placeholder: "@mcpspend/proxy 0.2.3"
+
+  - type: dropdown
+    id: client
+    attributes:
+      label: MCP client (if relevant)
+      options:
+        - "Claude Desktop"
+        - "Cursor"
+        - "Windsurf"
+        - "VS Code (Continue / Cline / etc.)"
+        - "Claude Code"
+        - "Custom / other"
+        - "Not applicable"
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - "macOS"
+        - "Windows"
+        - "Linux"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste any error output. **Do not include API keys or org IDs.**
+      render: shell
