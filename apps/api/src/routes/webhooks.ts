@@ -129,6 +129,37 @@ async function handleSignupCheckout(session: Stripe.Checkout.Session) {
   })
 
   console.log(`[webhook] signup processed: ${email} → ${plan}, org=${organizationId}`)
+
+  // Admin notify — same as the free-signup path in auth.ts but for the
+  // paid-checkout flow. Both routes lead to a new account being created.
+  void (async () => {
+    try {
+      const { adminSignupNotifyEmail } = await import('../emails/templates')
+      const adminEmail = process.env.ADMIN_NOTIFY_EMAIL
+      if (!adminEmail) return
+      const [totalUsers, totalOrgs] = await Promise.all([
+        prisma.user.count(),
+        prisma.organization.count(),
+      ])
+      const orgRow = await prisma.organization.findUnique({
+        where: { id: organizationId }, select: { name: true, plan: true },
+      })
+      await sendEmail({
+        to: adminEmail,
+        ...adminSignupNotifyEmail({
+          userEmail: email,
+          userName: session.customer_details?.name || null,
+          orgName: orgRow?.name || 'Unknown',
+          plan: (orgRow?.plan as 'FREE' | 'PRO' | 'TEAM' | 'ENTERPRISE') || plan,
+          source: 'checkout',
+          totalUsers,
+          totalOrgs,
+        }),
+      })
+    } catch (err) {
+      console.error('[webhook] admin notify failed:', err)
+    }
+  })()
 }
 
 // Stripe subscription statuses that mean "no active paid access":

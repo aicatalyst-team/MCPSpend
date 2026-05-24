@@ -117,6 +117,35 @@ router.post('/register', async (req, res) => {
     ...welcomeEmail({ name: result.user.name, dashboardUrl: `${dashboardUrl}/dashboard` }),
   })
 
+  // Admin notification — let the founder know in real time. Fire-and-forget
+  // and async-imported so a missing template never blocks signup.
+  void (async () => {
+    try {
+      const { adminSignupNotifyEmail } = await import('../emails/templates')
+      const adminEmail = process.env.ADMIN_NOTIFY_EMAIL
+      if (!adminEmail) return
+      const [totalUsers, totalOrgs] = await Promise.all([
+        prisma.user.count(),
+        prisma.organization.count(),
+      ])
+      const firstOrg = result.memberships[0]?.organization
+      await sendEmail({
+        to: adminEmail,
+        ...adminSignupNotifyEmail({
+          userEmail: result.user.email,
+          userName: result.user.name,
+          orgName: firstOrg?.name || 'Personal workspace',
+          plan: (firstOrg?.plan as 'FREE' | 'PRO' | 'TEAM' | 'ENTERPRISE') || 'FREE',
+          source: 'register',
+          totalUsers,
+          totalOrgs,
+        }),
+      })
+    } catch (err) {
+      console.error('[auth] admin notify failed:', err)
+    }
+  })()
+
   res.status(201).json({
     user: result.user,
     memberships: result.memberships,
@@ -183,7 +212,13 @@ router.post('/complete-setup', async (req, res) => {
     res.status(400).json({ error: 'Setup link expired or invalid' })
     return
   }
-  if (payload.purpose !== 'setup-password' || !payload.email) {
+  // Two valid intents:
+  //   - setup-password: brand-new account, no password set yet (Stripe-first flow)
+  //   - reset-password: existing account, user clicked "I forgot my password"
+  // Both end at the same "set/change password" UI; only the precondition
+  // differs (no existing hash vs always allowed).
+  const validPurpose = payload.purpose === 'setup-password' || payload.purpose === 'reset-password'
+  if (!validPurpose || !payload.email) {
     res.status(400).json({ error: 'Invalid setup token' })
     return
   }
@@ -194,9 +229,10 @@ router.post('/complete-setup', async (req, res) => {
     return
   }
 
-  // Don't allow overwriting an existing password via this flow (security).
-  if (user.passwordHash) {
-    res.status(409).json({ error: 'Password already set. Use /login or the reset-password flow.' })
+  // setup-password is one-time only — block re-use to keep the magic link a
+  // single-use credential. reset-password explicitly overwrites by design.
+  if (payload.purpose === 'setup-password' && user.passwordHash) {
+    res.status(409).json({ error: 'Password already set. Use the password-reset flow.' })
     return
   }
 
