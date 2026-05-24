@@ -23,8 +23,10 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold text-white">Agreement</h2>
             <p className="mt-2">
               These Terms govern your use of MCPSpend, operated by{' '}
-              <strong>NewRzs SRL</strong>, a Romanian limited liability company
-              (CUI RO48756557), with registered office in Bucharest, Romania
+              <strong>NEW RZS SRL</strong>, a Romanian limited liability company
+              (CUI RO48756557, Trade Register no. J2023005851235, EUID
+              ROONRC.J2023005851235), incorporated 2023-09-08, with registered office
+              at Str. Gliei 34-38, Corp B, Loc. Bragadiru, Jud. Ilfov, 077025, Romania
               (&quot;we&quot;, &quot;us&quot;). By signing up or using the service you
               agree to be bound by these Terms. If you don&apos;t agree, please don&apos;t
               use the service.
@@ -162,7 +164,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-white">Contact</h2>
             <p className="mt-2">
-              NewRzs SRL · Bucharest, Romania · CUI RO48756557 ·{' '}
+              NEW RZS SRL · Str. Gliei 34-38, Corp B, Bragadiru, Ilfov, Romania · CUI RO48756557 · J2023005851235 ·{' '}
               <a href="mailto:support@mcpspend.com" className="text-brand-400 hover:underline">
                 support@mcpspend.com
               </a>

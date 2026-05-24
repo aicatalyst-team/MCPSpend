@@ -22,9 +22,11 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white">Who we are</h2>
             <p className="mt-2">
-              MCPSpend is operated by <strong>NewRzs SRL</strong>, a Romanian company
-              (CUI RO48756557), headquartered in Bucharest, Romania. We&apos;re the data
-              controller for the personal data you provide to us. You can reach us at{' '}
+              MCPSpend is operated by <strong>NEW RZS SRL</strong>, a Romanian limited
+              liability company (CUI RO48756557, Trade Register no. J2023005851235,
+              EUID ROONRC.J2023005851235), incorporated 2023-09-08 with registered
+              office at Str. Gliei 34-38, Corp B, Loc. Bragadiru, Jud. Ilfov, 077025,
+              Romania. We&apos;re the data controller for the personal data you provide to us. You can reach us at{' '}
               <a href="mailto:support@mcpspend.com" className="text-brand-400 hover:underline">
                 support@mcpspend.com
               </a>{' '}

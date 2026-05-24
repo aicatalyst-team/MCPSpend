@@ -72,7 +72,7 @@ export function Footer() {
       </div>
       <div className="border-t border-white/5">
         <div className="max-w-6xl mx-auto px-6 py-6 flex flex-col md:flex-row justify-between gap-3 text-xs text-gray-500">
-          <span>© {new Date().getFullYear()} NewRzs SRL · CUI RO48756557 · All rights reserved.</span>
+          <span>© {new Date().getFullYear()} NEW RZS SRL · CUI RO48756557 · J2023005851235 · Bragadiru, Ilfov, Romania · All rights reserved.</span>
           <span>EU-hosted · GDPR-aware</span>
         </div>
       </div>
