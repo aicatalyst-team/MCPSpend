@@ -310,44 +310,60 @@ export default function DocsPage() {
           </p>
         </div>
 
-        {/* MCP compatibility matrix — answers 'does it work with X?' before
-            anyone has to email us. cross-spawn handles every shell variant. */}
+        {/* MCP compatibility matrix — three-column truth: local stdio,
+            local HTTP bridge (Figma etc.), and the genuine edge case
+            (claude.ai web-only OAuth connectors). */}
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
           <p className="text-white font-semibold">Compatible MCP servers</p>
           <p className="text-sm text-gray-400 mt-1">
-            MCPSpend wraps <strong>any MCP server that speaks the stdio JSON-RPC protocol</strong> — the proxy is a transparent stdio bridge, so the underlying transport doesn&apos;t matter.
+            MCPSpend wraps <strong>any MCP server you run locally</strong> — stdio or HTTP — including Figma, Gmail, Canva, Vercel, ClickUp, Google Drive/Calendar when you mount them as local HTTP MCPs. The proxy is transport-agnostic.
           </p>
-          <div className="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
-            <div>
-              <div className="text-xs uppercase tracking-widest text-emerald-400 font-semibold mb-2">✓ Works out of the box</div>
-              <ul className="text-gray-300 space-y-1 text-xs">
-                <li>• <code>npx</code> / <code>npx --yes</code> servers (most MCP servers on npm)</li>
-                <li>• <code>uvx</code> Python servers (mcp-server-git, etc.)</li>
-                <li>• <code>python</code>, <code>python3</code>, <code>pipx</code></li>
-                <li>• <code>docker run …</code> based servers</li>
-                <li>• <code>node</code>, <code>bun</code>, <code>deno</code> launched scripts</li>
-                <li>• Absolute-path binaries (<code>/usr/local/bin/my-mcp</code>)</li>
-                <li>• Custom shell wrappers + bash scripts</li>
-                <li>• Remote HTTP MCPs via <code>mcpspend wrap-http --url</code> (Figma, Vercel, etc.)</li>
+
+          <div className="mt-4 grid md:grid-cols-3 gap-3 text-xs">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+              <div className="text-[10px] uppercase tracking-widest text-emerald-300 font-semibold mb-2">✓ Local stdio MCPs — automatic</div>
+              <p className="text-gray-300 mb-2">One CLI command auto-detects and wraps. Works with anything that runs as a subprocess:</p>
+              <ul className="text-gray-400 space-y-0.5">
+                <li>• <code>npx</code> servers (most npm MCPs)</li>
+                <li>• <code>uvx</code> / <code>python</code> / <code>pipx</code></li>
+                <li>• <code>docker run …</code></li>
+                <li>• <code>node</code>, <code>bun</code>, <code>deno</code></li>
+                <li>• Absolute-path binaries</li>
+                <li>• Custom shell scripts</li>
               </ul>
+              <p className="text-[10px] text-gray-500 mt-2"><code>mcpspend add</code></p>
             </div>
-            <div>
-              <div className="text-xs uppercase tracking-widest text-amber-400 font-semibold mb-2">⚠ Not observable from a local proxy</div>
-              <ul className="text-gray-400 space-y-1 text-xs">
-                <li>• <strong>Claude.ai web integrations</strong> (Figma, Gmail, Canva, Vercel, Google Calendar/Drive, ClickUp) — these run server-side at Anthropic; nothing local to wrap</li>
-                <li>• MCPs configured as Anthropic-managed connectors</li>
+
+            <div className="rounded-xl border border-brand-500/20 bg-brand-500/5 p-3">
+              <div className="text-[10px] uppercase tracking-widest text-brand-300 font-semibold mb-2">✓ Remote HTTP MCPs — via bridge</div>
+              <p className="text-gray-300 mb-2">For HTTP-only MCPs, our stdio↔HTTP bridge wraps the remote endpoint as if it were local. Verified with:</p>
+              <ul className="text-gray-400 space-y-0.5">
+                <li>• Figma (<code>mcp.figma.com</code>)</li>
+                <li>• Vercel MCP</li>
+                <li>• Gmail / Google Drive / Calendar</li>
+                <li>• Canva MCP</li>
+                <li>• ClickUp MCP</li>
+                <li>• Any custom HTTP MCP</li>
               </ul>
-              <p className="text-xs text-gray-500 mt-2">For Claude.ai-managed MCPs, the local proxy has no path to intercept. We observe everything you run locally.</p>
+              <p className="text-[10px] text-gray-500 mt-2"><code>mcpspend wrap-http --url https://mcp.figma.com</code></p>
+            </div>
+
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+              <div className="text-[10px] uppercase tracking-widest text-amber-300 font-semibold mb-2">⚠ Claude.ai web-only OAuth connectors</div>
+              <p className="text-gray-300 mb-2">When you click <em>&quot;Connect Figma&quot;</em> inside the <strong>claude.ai web interface</strong>, nothing runs on your machine — everything is server-side at Anthropic.</p>
+              <p className="text-gray-400">Workaround: use the same provider as a <strong>local HTTP MCP</strong> (column 2) — fully observable.</p>
+              <p className="text-[10px] text-gray-500 mt-2">Affects only OAuth connectors mounted inside claude.ai web (not Desktop, Cursor, Windsurf, VS Code, Claude Code — those all expose local MCP config we wrap).</p>
             </div>
           </div>
 
           <div className="mt-5 border-t border-white/5 pt-4">
-            <p className="text-xs text-gray-400 mb-2"><strong className="text-white">Verified providers</strong> (in production traffic):</p>
+            <p className="text-xs text-gray-400 mb-2"><strong className="text-white">Verified providers</strong> (across stdio + HTTP bridge):</p>
             <div className="flex flex-wrap gap-1.5 text-xs">
               {[
                 'filesystem', 'github', 'playwright', 'puppeteer', 'fetch', 'sqlite',
-                'postgres', 'figma (local)', 'slack', 'gmail (local)', 'google-drive (local)',
-                'notion', 'linear', 'jira', 'stripe', 'memory', 'sequentialthinking', 'time',
+                'postgres', 'figma', 'figma (HTTP)', 'slack', 'gmail', 'google-drive',
+                'google-calendar', 'canva', 'vercel', 'clickup', 'notion', 'linear', 'jira',
+                'stripe', 'memory', 'sequentialthinking', 'time',
                 'brave-search', 'tavily', 'firecrawl', 'docker', 'aws-s3', 'redis',
               ].map((p) => (
                 <span key={p} className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-300 font-mono">{p}</span>
