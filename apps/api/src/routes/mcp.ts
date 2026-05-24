@@ -269,6 +269,44 @@ const TOOLS = [
     annotations: { title: 'Session details', readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   },
   {
+    // Cost prediction — answer "what would this tool call cost?" BEFORE it
+    // happens. Lets agents self-throttle expensive operations. Unique to
+    // MCPSpend: nobody else has the historical baseline + the live API to
+    // surface it inside the calling agent's own context.
+    name: 'estimate_cost',
+    description:
+      'Estimate the USD cost of an MCP tool call BEFORE invoking it. Returns median + P90 + average cost from the org\'s last-30-day history for this exact (server, tool) combo. Use this to make spend-aware decisions in your agent — e.g. confirm with the user before invoking tools where the estimate exceeds your budget. Returns isUnknown=true with zero cost when no baseline exists yet.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        serverName: { type: 'string', description: 'MCP server name, e.g. "playwright" or "github".' },
+        toolName: { type: 'string', description: 'Tool name within the server, e.g. "browser_navigate".' },
+        model: { type: 'string', description: 'Optional model identifier. Falls back to the historical median across all models when omitted.' },
+      },
+      required: ['serverName', 'toolName'],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        serverName: { type: 'string' },
+        toolName: { type: 'string' },
+        model: { type: ['string', 'null'] },
+        isUnknown: { type: 'boolean' },
+        estimatedCostUsd: { type: 'number', description: 'Median cost from sample.' },
+        p90CostUsd: { type: 'number', description: '90th percentile cost — worst-case reasonable estimate.' },
+        avgCostUsd: { type: 'number' },
+        sampleSize: { type: 'integer' },
+        successRate: { type: 'number', description: '0-1, fraction of historical calls that succeeded.' },
+        avgLatencyMs: { type: ['integer', 'null'] },
+        avgInputTokens: { type: 'integer' },
+        avgOutputTokens: { type: 'integer' },
+      },
+      required: ['serverName', 'toolName', 'isUnknown', 'estimatedCostUsd', 'sampleSize'],
+    },
+    annotations: { title: 'Cost prediction (pre-call)', readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  },
+  {
     // Public no-auth tool. Smithery scores "time to first success" — letting a
     // user `tools/call try_demo` BEFORE they create an API key collapses the
     // onboarding flow to a single click. The numbers are a realistic but
@@ -487,6 +525,60 @@ async function handleTool(name: string, args: Record<string, unknown>, organizat
         lines.push(`  ${s.id} · ${s.model} · ${s.toolCallCount} calls · ${fmtUsd(s.totalCostUsd)} · ${dur}`)
       })
       return { text: lines.join('\n'), structured }
+    }
+
+    case 'estimate_cost': {
+      const serverName = String(args.serverName || '').trim()
+      const toolName = String(args.toolName || '').trim()
+      const model = args.model ? String(args.model).trim() : undefined
+      if (!serverName || !toolName) {
+        throw new Error('estimate_cost requires serverName and toolName')
+      }
+      const since = new Date()
+      since.setUTCDate(since.getUTCDate() - 30)
+      const sample = await prisma.toolCall.findMany({
+        where: {
+          organizationId, serverName, toolName,
+          ...(model ? { model } : {}),
+          calledAt: { gte: since },
+        },
+        orderBy: { calledAt: 'desc' },
+        take: 200,
+        select: { costUsd: true, latencyMs: true, inputTokens: true, outputTokens: true, success: true },
+      })
+      if (sample.length === 0) {
+        return {
+          text: `🤷 No historical data for ${serverName}/${toolName} yet. First call will populate the baseline.`,
+          structured: {
+            serverName, toolName, model: model ?? null,
+            isUnknown: true, estimatedCostUsd: 0, sampleSize: 0,
+          },
+        }
+      }
+      const sorted = [...sample].sort((a, b) => a.costUsd - b.costUsd)
+      const median = sorted[Math.floor(sorted.length / 2)].costUsd
+      const p90 = sorted[Math.floor(sorted.length * 0.9)].costUsd
+      const avg = sample.reduce((acc, r) => acc + r.costUsd, 0) / sample.length
+      const successCount = sample.filter((r) => r.success).length
+      const avgLatencyMs = sample.filter((r) => r.latencyMs != null).reduce((acc, r, _, arr) => acc + (r.latencyMs ?? 0) / arr.length, 0)
+      const structured = {
+        serverName, toolName, model: model ?? null,
+        isUnknown: false,
+        estimatedCostUsd: median,
+        p90CostUsd: p90,
+        avgCostUsd: avg,
+        sampleSize: sample.length,
+        successRate: successCount / sample.length,
+        avgLatencyMs: avgLatencyMs > 0 ? Math.round(avgLatencyMs) : null,
+        avgInputTokens: Math.round(sample.reduce((acc, r) => acc + r.inputTokens, 0) / sample.length),
+        avgOutputTokens: Math.round(sample.reduce((acc, r) => acc + r.outputTokens, 0) / sample.length),
+      }
+      const text = [
+        `Estimated cost for ${serverName}/${toolName}: ${fmtUsd(median)} (median over ${sample.length} calls).`,
+        `  P90: ${fmtUsd(p90)} · Avg: ${fmtUsd(avg)}`,
+        `  Success rate: ${Math.round((successCount / sample.length) * 100)}% · Avg latency: ${avgLatencyMs > 0 ? Math.round(avgLatencyMs) + 'ms' : '?'}`,
+      ].join('\n')
+      return { text, structured }
     }
 
     case 'get_session_details': {

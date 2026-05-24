@@ -167,6 +167,22 @@ TOOLS.push({
   },
 })
 
+TOOLS.push({
+  name: 'estimate_cost',
+  description:
+    'Estimate the USD cost of an MCP tool call BEFORE invoking it. Returns expected cost based on the historical average for this (server, tool, model) combo in this org over the last 30 days. Use this to make spend-aware decisions — e.g. confirm with the user before calling tools that would cost more than $0.10. Returns 0 + isUnknown=true when no history exists yet.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      serverName: { type: 'string', description: 'MCP server name, e.g. "playwright" or "github".' },
+      toolName: { type: 'string', description: 'Tool name within that server, e.g. "browser_navigate".' },
+      model: { type: 'string', description: 'Optional model identifier for cost lookup. Falls back to the historical median for this tool when omitted.' },
+    },
+    required: ['serverName', 'toolName'],
+    additionalProperties: false,
+  },
+})
+
 async function handleTool(name: string, args: Record<string, unknown>, key: string): Promise<string> {
   switch (name) {
     case 'get_today_cost': {
@@ -227,6 +243,41 @@ async function handleTool(name: string, args: Record<string, unknown>, key: stri
         lines.push(`  ${s.id} · ${s.model} · ${s.toolCallCount} calls · ${fmtUsd(s.totalCostUsd)} · ${dur}`)
       })
       return lines.join('\n')
+    }
+
+    case 'estimate_cost': {
+      const serverName = String(args.serverName || '').trim()
+      const toolName = String(args.toolName || '').trim()
+      const model = args.model ? String(args.model).trim() : ''
+      if (!serverName || !toolName) {
+        throw new Error('estimate_cost requires serverName and toolName')
+      }
+      const qs = new URLSearchParams({ serverName, toolName, ...(model ? { model } : {}) })
+      const r = await apiGet<{
+        isUnknown: boolean
+        estimatedCostUsd: number
+        p90CostUsd?: number
+        avgCostUsd?: number
+        sampleSize: number
+        successRate?: number
+        avgLatencyMs?: number | null
+        message?: string
+      }>(`/api/stats/predict?${qs.toString()}`, key)
+
+      if (r.isUnknown) {
+        return [
+          `🤷 No historical data for ${serverName}/${toolName} yet.`,
+          `Estimated cost: $0 (unknown).`,
+          'First call will populate the baseline.',
+        ].join('\n')
+      }
+
+      const successPct = Math.round((r.successRate ?? 1) * 100)
+      return [
+        `Estimated cost for ${serverName}/${toolName}: ${fmtUsd(r.estimatedCostUsd)} (median over ${r.sampleSize} calls).`,
+        `  P90: ${fmtUsd(r.p90CostUsd ?? 0)} · Avg: ${fmtUsd(r.avgCostUsd ?? 0)}`,
+        `  Success rate: ${successPct}% · Avg latency: ${r.avgLatencyMs ?? '?'}ms`,
+      ].join('\n')
     }
 
     case 'get_session_details': {

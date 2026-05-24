@@ -77,6 +77,76 @@ router.get('/overview', requireOrg, async (req: AuthRequest, res) => {
   res.json(result)
 })
 
+// Cost prediction — estimate the USD cost of a specific (server, tool[, model])
+// combo based on the org's own 30-day history. Surfaced as a public MCP tool
+// (`estimate_cost`) so agents can self-throttle expensive calls before making
+// them. Returns 0 + isUnknown=true when we have no signal yet — agents should
+// treat that as "go ahead, but log".
+router.get('/predict', requireOrg, async (req: AuthRequest, res) => {
+  const organizationId = req.organizationId!
+  const serverName = (req.query.serverName as string | undefined)?.trim()
+  const toolName = (req.query.toolName as string | undefined)?.trim()
+  const model = (req.query.model as string | undefined)?.trim()
+
+  if (!serverName || !toolName) {
+    res.status(400).json({ error: 'serverName and toolName are required' })
+    return
+  }
+
+  const since = new Date()
+  since.setUTCDate(since.getUTCDate() - 30)
+
+  // Use median of historical call costs to avoid one runaway call skewing the
+  // estimate. Group by latest 200 matching calls for tractable sampling.
+  const sampleRows = await prisma.toolCall.findMany({
+    where: {
+      organizationId,
+      serverName,
+      toolName,
+      ...(model ? { model } : {}),
+      calledAt: { gte: since },
+    },
+    orderBy: { calledAt: 'desc' },
+    take: 200,
+    select: { costUsd: true, latencyMs: true, inputTokens: true, outputTokens: true, success: true },
+  })
+
+  if (sampleRows.length === 0) {
+    res.json({
+      serverName, toolName, model: model ?? null,
+      isUnknown: true,
+      estimatedCostUsd: 0,
+      sampleSize: 0,
+      message: 'No historical data for this tool in the last 30 days — first call will populate the baseline.',
+    })
+    return
+  }
+
+  const sorted = [...sampleRows].sort((a, b) => a.costUsd - b.costUsd)
+  const median = sorted[Math.floor(sorted.length / 2)].costUsd
+  const p90 = sorted[Math.floor(sorted.length * 0.9)].costUsd
+  const avg = sampleRows.reduce((acc, r) => acc + r.costUsd, 0) / sampleRows.length
+  const successCount = sampleRows.filter((r) => r.success).length
+  const avgLatencyMs = sampleRows
+    .filter((r) => r.latencyMs != null)
+    .reduce((acc, r, _, arr) => acc + (r.latencyMs ?? 0) / arr.length, 0)
+  const avgInputTokens = sampleRows.reduce((acc, r) => acc + r.inputTokens, 0) / sampleRows.length
+  const avgOutputTokens = sampleRows.reduce((acc, r) => acc + r.outputTokens, 0) / sampleRows.length
+
+  res.json({
+    serverName, toolName, model: model ?? null,
+    isUnknown: false,
+    estimatedCostUsd: median, // headline figure (median = robust to outliers)
+    p90CostUsd: p90,
+    avgCostUsd: avg,
+    sampleSize: sampleRows.length,
+    successRate: successCount / sampleRows.length,
+    avgLatencyMs: avgLatencyMs > 0 ? Math.round(avgLatencyMs) : null,
+    avgInputTokens: Math.round(avgInputTokens),
+    avgOutputTokens: Math.round(avgOutputTokens),
+  })
+})
+
 // End-of-month forecast — recency-weighted moving average with day-of-week
 // seasonality. Cached 10 min per org because the forecast only meaningfully
 // changes when fresh daily totals land (worker aggregates every 5 min).

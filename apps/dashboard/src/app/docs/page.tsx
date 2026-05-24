@@ -73,6 +73,13 @@ const SECTIONS: Array<{ title: string; description: string; endpoints: Endpoint[
       },
       {
         method: 'GET',
+        path: '/api/stats/predict?serverName=…&toolName=…&model=…',
+        summary: 'Estimate the USD cost of a specific tool call BEFORE invoking it. Pre-call cost prediction.',
+        auth: 'apikey',
+        notes: 'Returns median + P90 + average from your last 30 days. isUnknown=true when no baseline exists. Surfaced as the estimate_cost MCP tool so agents can self-throttle.',
+      },
+      {
+        method: 'GET',
         path: '/api/stats/sessions?limit=20&offset=0',
         summary: 'List recent sessions.',
         auth: 'apikey',
