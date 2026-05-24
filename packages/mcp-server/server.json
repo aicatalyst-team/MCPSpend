@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.andreisirbu91-lab/mcpspend",
-  "description": "Query your MCPSpend usage from any MCP client. Per-tool cost attribution, top tools by spend, recent sessions, month-to-date usage projections. Pairs with the MCPSpend observability proxy that records every MCP tool call your agents make.",
+  "description": "Query your MCPSpend usage: cost today, top tools, recent sessions, budget projections.",
   "repository": {
     "url": "https://github.com/andreisirbu91-lab/MCPSpend",
     "source": "github"
