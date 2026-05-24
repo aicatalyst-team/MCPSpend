@@ -62,31 +62,41 @@ publicRouter.post('/start', async (req, res) => {
   const stripe = stripeClient()
   const dashboardUrl = process.env.DASHBOARD_URL?.split(',')[0]?.trim() || 'https://mcpspend.com'
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: [{ price: priceId, quantity: 1 }],
-    customer_creation: 'always',
-    customer_email: parsed.data.email,
-    success_url: `${dashboardUrl}/setup-account?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${dashboardUrl}/#pricing`,
-    metadata: { project: 'mcpspend', flow: 'signup', plan: parsed.data.plan, cadence: parsed.data.cadence },
-    subscription_data: {
+  // NOTE: `customer_creation` is ONLY valid for mode='payment' (one-time
+  // charges). In subscription mode Stripe always creates the Customer
+  // automatically — passing customer_creation throws StripeInvalidRequestError
+  // which used to crash the whole container with an unhandled promise
+  // rejection. Hence the explicit try/catch below.
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      customer_email: parsed.data.email,
+      success_url: `${dashboardUrl}/setup-account?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${dashboardUrl}/#pricing`,
       metadata: { project: 'mcpspend', flow: 'signup', plan: parsed.data.plan, cadence: parsed.data.cadence },
-    },
-    allow_promotion_codes: true,
-    // Surface our Terms + Privacy below the pay button on the Stripe-hosted
-    // page. Stripe's `consent_collection.terms_of_service: required` requires
-    // an account-level Terms URL — but our Stripe account is shared with
-    // other businesses, so we can't pin one there. `custom_text` is the
-    // per-session escape hatch.
-    custom_text: {
-      submit: {
-        message: 'By subscribing you agree to the [Terms of Service](https://mcpspend.com/terms) and [Privacy Policy](https://mcpspend.com/privacy).',
+      subscription_data: {
+        metadata: { project: 'mcpspend', flow: 'signup', plan: parsed.data.plan, cadence: parsed.data.cadence },
       },
-    },
-  })
+      allow_promotion_codes: true,
+      // Surface our Terms + Privacy below the pay button on the Stripe-hosted
+      // page. Stripe's `consent_collection.terms_of_service: required` requires
+      // an account-level Terms URL — but our Stripe account is shared with
+      // other businesses, so we can't pin one there. `custom_text` is the
+      // per-session escape hatch.
+      custom_text: {
+        submit: {
+          message: 'By subscribing you agree to the [Terms of Service](https://mcpspend.com/terms) and [Privacy Policy](https://mcpspend.com/privacy).',
+        },
+      },
+    })
 
-  res.json({ url: session.url, sessionId: session.id })
+    res.json({ url: session.url, sessionId: session.id })
+  } catch (err) {
+    console.error('[billing/start] Stripe checkout creation failed:', err)
+    const message = err instanceof Error ? err.message : 'Could not start checkout'
+    res.status(502).json({ error: message })
+  }
 })
 
 // POST /api/billing/checkout — for users who are already authenticated and
