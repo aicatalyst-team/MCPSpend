@@ -46,22 +46,50 @@ export function Hero() {
           </a>
         </div>
 
-        {/* Product Hunt featured badge under the CTAs. Centered, opens in a new
-            tab. Uses the dark theme so it blends with the hero background. */}
-        <a
-          href="https://www.producthunt.com/products/mcpspend?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-mcpspend"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-8 inline-block"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1154250&theme=dark"
-            alt="MCPSpend - Know what your AI agents really cost | Product Hunt"
-            width={250}
-            height={54}
-          />
-        </a>
+        {/* Trust cluster — Product Hunt + Smithery side by side. Both registries
+            give third-party validation: PH for product-launch credibility,
+            Smithery for "we're listed in the official MCP catalog". */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+          <a
+            href="https://www.producthunt.com/products/mcpspend?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-mcpspend"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1154250&theme=dark"
+              alt="MCPSpend - Know what your AI agents really cost | Product Hunt"
+              width={250}
+              height={54}
+            />
+          </a>
+
+          {/* "Live on Smithery" — a Product-Hunt-equivalent badge that signals
+              we are listed in the official MCP server catalog. Hand-rolled
+              instead of using the auto-generated Smithery SVG so it visually
+              matches the PH badge size (250×54) and the dark theme. */}
+          <a
+            href="https://smithery.ai/servers/andreisirbu91-lab/mcpspend"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-3 h-[54px] px-5 rounded-lg bg-[#FF5C00] hover:bg-[#FF7A2A] transition-colors"
+            style={{ width: 250 }}
+            aria-label="MCPSpend on Smithery registry"
+          >
+            <span className="inline-flex w-9 h-9 items-center justify-center rounded bg-white/15 text-white text-xl font-bold leading-none">
+              ▦
+            </span>
+            <span className="flex flex-col text-left text-white leading-tight">
+              <span className="text-[10px] uppercase tracking-widest opacity-80">
+                LIVE ON
+              </span>
+              <span className="text-base font-bold">
+                Smithery Registry
+              </span>
+            </span>
+          </a>
+        </div>
 
         <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-400">
           {trustItems.map((t) => (
