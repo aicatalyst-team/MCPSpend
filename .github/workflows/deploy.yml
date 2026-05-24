@@ -9,11 +9,17 @@ concurrency:
   group: production-deploy
   cancel-in-progress: false
 
-# Why this changed (2026-05-23): SSH tunnels from GH Actions runners to our
-# VPS port 22 started timing out intermittently (firewall / rate limit on the
-# host). The new path POSTs to /api/internal/redeploy on api.mcpspend.com,
-# which proxies the call to Coolify on the internal Docker network. No
-# inbound port 22 needed. Authentication is a shared secret (DEPLOY_SECRET).
+# Why: SSH tunnels from GH Actions runners to our VPS port 22 started timing
+# out intermittently. The new path POSTs to /api/internal/redeploy on
+# api.mcpspend.com, which proxies the call to Coolify on the internal Docker
+# network. No inbound port 22 needed. Authentication is a shared secret
+# (DEPLOY_SECRET).
+#
+# Each job uses `shell: bash {0}` to disable the default `bash -eo pipefail`
+# wrapping — that wrapping killed the retry loop on the first failed curl
+# (set -e exited the script before the `done`). With plain bash, the loop
+# survives transient 5xx / timeouts long enough for the API to come back up
+# after its own restart.
 
 jobs:
   ci:
@@ -26,45 +32,58 @@ jobs:
     needs: ci
     steps:
       - name: Trigger Coolify deploy — API
+        shell: bash {0}
+        env:
+          DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
+          UUID: ${{ secrets.COOLIFY_API_UUID }}
         run: |
-          for attempt in 1 2 3 4 5; do
-            response=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
+          ok=0
+          for attempt in 1 2 3 4 5 6; do
+            code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
               "https://api.mcpspend.com/api/internal/redeploy" \
-              -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
+              -H "X-Deploy-Token: $DEPLOY_SECRET" \
               -H "Content-Type: application/json" \
-              -d '{"uuid":"${{ secrets.COOLIFY_API_UUID }}"}' || echo "000")
-            echo "API attempt $attempt: $response"
-            cat /tmp/body 2>/dev/null
-            if [ "$response" = "200" ]; then exit 0; fi
-            echo "Retrying in 20s (webhook may be restarting)..."
-            sleep 20
+              -d "{\"uuid\":\"$UUID\"}")
+            echo "API attempt $attempt: code=$code"
+            head -c 400 /tmp/body 2>/dev/null
+            echo ""
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            echo "Retrying in 25s (webhook may be restarting)..."
+            sleep 25
           done
-          echo "Webhook never returned 200 after 5 attempts"
-          exit 1
+          if [ "$ok" != "1" ]; then
+            echo "::error::API webhook never returned 200 after 6 attempts"
+            exit 1
+          fi
 
   deploy-worker:
     name: Deploy Worker
     runs-on: ubuntu-latest
-    # Wait for API to land first — the webhook lives on api.mcpspend.com, so
-    # if all three deploys ran in parallel the worker/dashboard jobs would
-    # POST while the API container is restarting (curl exit code 28). Adding
-    # `needs: deploy-api` serialises them and avoids the flaky deploy chain.
     needs: [ci, deploy-api]
     steps:
       - name: Trigger Coolify deploy — Worker
+        shell: bash {0}
+        env:
+          DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
+          UUID: ${{ secrets.COOLIFY_WORKER_UUID }}
         run: |
-          for attempt in 1 2 3 4 5; do
-            response=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
+          ok=0
+          for attempt in 1 2 3 4 5 6; do
+            code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
               "https://api.mcpspend.com/api/internal/redeploy" \
-              -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
+              -H "X-Deploy-Token: $DEPLOY_SECRET" \
               -H "Content-Type: application/json" \
-              -d '{"uuid":"${{ secrets.COOLIFY_WORKER_UUID }}"}' || echo "000")
-            echo "Worker attempt $attempt: $response"
-            cat /tmp/body 2>/dev/null
-            if [ "$response" = "200" ]; then exit 0; fi
-            sleep 20
+              -d "{\"uuid\":\"$UUID\"}")
+            echo "Worker attempt $attempt: code=$code"
+            head -c 400 /tmp/body 2>/dev/null
+            echo ""
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 25
           done
-          exit 1
+          if [ "$ok" != "1" ]; then
+            echo "::error::Worker webhook never returned 200 after 6 attempts"
+            exit 1
+          fi
 
   deploy-dashboard:
     name: Deploy Dashboard
@@ -72,19 +91,28 @@ jobs:
     needs: [ci, deploy-api]
     steps:
       - name: Trigger Coolify deploy — Dashboard
+        shell: bash {0}
+        env:
+          DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
+          UUID: ${{ secrets.COOLIFY_DASHBOARD_UUID }}
         run: |
-          for attempt in 1 2 3 4 5; do
-            response=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
+          ok=0
+          for attempt in 1 2 3 4 5 6; do
+            code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
               "https://api.mcpspend.com/api/internal/redeploy" \
-              -H "X-Deploy-Token: ${{ secrets.DEPLOY_SECRET }}" \
+              -H "X-Deploy-Token: $DEPLOY_SECRET" \
               -H "Content-Type: application/json" \
-              -d '{"uuid":"${{ secrets.COOLIFY_DASHBOARD_UUID }}"}' || echo "000")
-            echo "Dashboard attempt $attempt: $response"
-            cat /tmp/body 2>/dev/null
-            if [ "$response" = "200" ]; then exit 0; fi
-            sleep 20
+              -d "{\"uuid\":\"$UUID\"}")
+            echo "Dashboard attempt $attempt: code=$code"
+            head -c 400 /tmp/body 2>/dev/null
+            echo ""
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            sleep 25
           done
-          exit 1
+          if [ "$ok" != "1" ]; then
+            echo "::error::Dashboard webhook never returned 200 after 6 attempts"
+            exit 1
+          fi
 
   notify:
     name: Deploy complete
