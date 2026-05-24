@@ -77,15 +77,15 @@ export function Hero() {
         <div className="mt-8 flex flex-wrap items-center justify-center gap-2 text-xs">
           <a href="https://www.npmjs.com/package/@mcpspend/proxy" target="_blank" rel="noopener noreferrer" aria-label="npm package">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://img.shields.io/npm/v/@mcpspend/proxy.svg?label=npm&color=cb3837" alt="npm version" height={20} />
+            <img src="https://img.shields.io/npm/v/@mcpspend/proxy.svg?label=npm&color=cb3837&cacheSeconds=300" alt="npm version" height={20} />
           </a>
           <a href="https://www.npmjs.com/package/@mcpspend/proxy" target="_blank" rel="noopener noreferrer" aria-label="npm downloads">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://img.shields.io/npm/dm/@mcpspend/proxy.svg?label=downloads&color=blue" alt="npm downloads" height={20} />
+            <img src="https://img.shields.io/npm/dm/@mcpspend/proxy.svg?label=downloads&color=blue&cacheSeconds=300" alt="npm downloads" height={20} />
           </a>
           <a href="https://github.com/andreisirbu91-lab/MCPSpend" target="_blank" rel="noopener noreferrer" aria-label="GitHub repo">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://img.shields.io/github/stars/andreisirbu91-lab/MCPSpend?style=flat&logo=github&color=181717" alt="GitHub stars" height={20} />
+            <img src="https://img.shields.io/github/stars/andreisirbu91-lab/MCPSpend?style=flat&logo=github&color=181717&cacheSeconds=300" alt="GitHub stars" height={20} />
           </a>
           <a href="https://smithery.ai/servers/andreisirbu91-lab/mcpspend" target="_blank" rel="noopener noreferrer" aria-label="Smithery server">
             {/* eslint-disable-next-line @next/next/no-img-element */}
