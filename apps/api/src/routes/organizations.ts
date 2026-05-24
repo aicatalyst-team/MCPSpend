@@ -61,10 +61,26 @@ router.get('/current', requireOrg, async (req: AuthRequest, res) => {
       callsThisMonth: true, callsLimit: true,
       billingCycleStart: true, createdAt: true,
       slackWebhookUrl: true,
+      monthlyBudgetUsd: true,
     },
   })
   if (!org) { res.status(404).json({ error: 'Organization not found' }); return }
-  res.json({ ...org, slackWebhookUrl: decrypt(org.slackWebhookUrl) })
+
+  // Month-to-date spend for the budget widget. One aggregate query — same
+  // shape the dashboard already uses but scoped to this month UTC.
+  const since = new Date()
+  since.setUTCDate(1)
+  since.setUTCHours(0, 0, 0, 0)
+  const spendAgg = await prisma.dailyStats.aggregate({
+    where: { organizationId: req.organizationId!, date: { gte: since } },
+    _sum: { costUsd: true },
+  })
+
+  res.json({
+    ...org,
+    slackWebhookUrl: decrypt(org.slackWebhookUrl),
+    spendThisMonthUsd: spendAgg._sum.costUsd ?? 0,
+  })
 })
 
 // Update organization (OWNER/ADMIN only). Accepts name + Slack webhook URL
@@ -74,21 +90,34 @@ router.patch('/current', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: 
   const schema = z.object({
     name: z.string().min(1).max(80).optional(),
     slackWebhookUrl: z.string().url().startsWith('https://hooks.slack.com/').nullable().optional(),
+    // monthly cost cap in USD. null clears it.
+    monthlyBudgetUsd: z.number().positive().max(1_000_000).nullable().optional(),
   })
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return }
 
   // Encrypt secrets at rest before persisting. The crypto helper is a no-op
   // when APP_ENCRYPTION_KEY is not set (dev mode passthrough).
-  const data: typeof parsed.data = { ...parsed.data }
-  if ('slackWebhookUrl' in data) {
-    data.slackWebhookUrl = encrypt(data.slackWebhookUrl) as string | null
+  // Spread first so we don't mutate parsed.data; only the slack value goes
+  // through the encryption helper.
+  const data: Record<string, unknown> = { ...parsed.data }
+  if ('slackWebhookUrl' in parsed.data) {
+    data.slackWebhookUrl = encrypt(parsed.data.slackWebhookUrl) as string | null
+  }
+  // Resetting the budget should also reset the alert tracking so the next
+  // run alerts fresh against the new number.
+  if ('monthlyBudgetUsd' in parsed.data) {
+    data.lastSpendAlertAt = null
+    data.lastSpendAlertLevel = null
   }
 
   const org = await prisma.organization.update({
     where: { id: req.organizationId! },
     data,
-    select: { id: true, name: true, slug: true, plan: true, slackWebhookUrl: true },
+    select: {
+      id: true, name: true, slug: true, plan: true,
+      slackWebhookUrl: true, monthlyBudgetUsd: true,
+    },
   })
   res.json({ ...org, slackWebhookUrl: decrypt(org.slackWebhookUrl) })
 })

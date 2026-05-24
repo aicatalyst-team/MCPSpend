@@ -115,3 +115,34 @@ export function budgetAlertEmail(args: {
     }),
   }
 }
+
+// Dollar-budget alert — separate from the call-quota one above. Fires when
+// month-to-date spend crosses 50/80/100% of the user's monthlyBudgetUsd.
+export function spendAlertEmail(args: {
+  organizationName: string
+  percentUsed: number
+  spendUsd: number
+  budgetUsd: number
+  dashboardUrl: string
+}) {
+  const exceeded = args.percentUsed >= 100
+  return {
+    subject: exceeded
+      ? `MCPSpend: ${args.organizationName} exceeded its $${args.budgetUsd.toFixed(2)} budget`
+      : `${args.percentUsed}% of your $${args.budgetUsd.toFixed(2)} MCPSpend budget used`,
+    html: shell({
+      title: exceeded ? 'Budget exceeded' : 'Spend alert',
+      body: `
+        <p><strong>${args.organizationName}</strong> has used <strong>${args.percentUsed}%</strong> of this month&apos;s ${'$' + args.budgetUsd.toFixed(2)} cost budget.</p>
+        <p style="background:#0a0a0a;border-left:3px solid ${BRAND_COLOR};padding:10px 14px;border-radius:4px;">
+          <span style="color:#9ca3af;">Spent this month:</span> <strong>${'$' + args.spendUsd.toFixed(2)}</strong> / ${'$' + args.budgetUsd.toFixed(2)}
+        </p>
+        <p>${exceeded
+          ? 'Tool tracking continues, but consider auditing which agents are driving the spike or raising the budget.'
+          : 'Heads up so you can act before the cap.'}</p>
+      `,
+      ctaText: 'Manage budget',
+      ctaUrl: args.dashboardUrl,
+    }),
+  }
+}

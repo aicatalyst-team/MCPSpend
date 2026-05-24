@@ -37,7 +37,14 @@ model Organization {
   billingCycleStart    DateTime @default(now())
   slackWebhookUrl      String?
   lastBudgetAlertAt    DateTime?
-  lastBudgetAlertLevel Int?     // last threshold hit (e.g. 80, 100)
+  lastBudgetAlertLevel Int?     // last quota-% threshold hit (80, 100)
+  // Optional monthly cost cap in USD. When set, the maintenance job alerts
+  // on % of THIS budget (in $) rather than % of plan call limit. Lets users
+  // protect themselves from runaway spend (e.g. "if my agent makes 200k
+  // tool calls accidentally, alert me before $50 spent").
+  monthlyBudgetUsd     Float?
+  lastSpendAlertAt     DateTime?
+  lastSpendAlertLevel  Int?     // last dollar-% threshold hit (50, 80, 100)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 

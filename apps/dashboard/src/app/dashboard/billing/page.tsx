@@ -1,5 +1,6 @@
 'use client'
 import { Suspense, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { api, ApiError } from '@/lib/api'
 
@@ -18,6 +19,8 @@ interface OrgInfo {
   name: string
   plan: string
   slackWebhookUrl: string | null
+  monthlyBudgetUsd: number | null
+  spendThisMonthUsd: number
 }
 
 // Pricing.tsx promises these retention windows.
@@ -74,6 +77,7 @@ function BillingContent() {
   const [cadence, setCadence] = useState<'monthly' | 'yearly'>('monthly')
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [slackInput, setSlackInput] = useState('')
+  const [budgetInput, setBudgetInput] = useState('')
 
   async function refresh() {
     try {
@@ -84,6 +88,7 @@ function BillingContent() {
       setData(s)
       setOrg(o)
       setSlackInput(o.slackWebhookUrl || '')
+      setBudgetInput(o.monthlyBudgetUsd != null ? String(o.monthlyBudgetUsd) : '')
       if (s.cadence) setCadence(s.cadence)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to load billing status')
@@ -106,6 +111,31 @@ function BillingContent() {
       await refresh()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to save Slack webhook')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function saveBudget() {
+    setBusy('budget'); setError(''); setInfo('')
+    try {
+      const raw = budgetInput.trim()
+      const value = raw === '' ? null : Number(raw)
+      if (value !== null && (!Number.isFinite(value) || value <= 0)) {
+        setError('Budget must be a positive number, e.g. 50')
+        setBusy(null)
+        return
+      }
+      await api('/api/organizations/current', {
+        method: 'PATCH',
+        body: JSON.stringify({ monthlyBudgetUsd: value }),
+      })
+      setInfo(value === null
+        ? 'Budget cleared. You’ll still get quota alerts based on your plan.'
+        : `Budget set to $${value}/month. You’ll get email + Slack alerts at 50%, 80%, and 100%.`)
+      await refresh()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to save budget')
     } finally {
       setBusy(null)
     }
@@ -376,6 +406,102 @@ function BillingContent() {
           </p>
         </div>
       )}
+
+      {/* Monthly dollar budget — separate from the plan call quota. Anyone
+          can set this, including Free, as a safety net against accidental
+          spikes. Goes hand-in-hand with Slack webhook below. */}
+      {(() => {
+        const budget = org?.monthlyBudgetUsd ?? null
+        const spend = org?.spendThisMonthUsd ?? 0
+        const pct = budget && budget > 0 ? Math.min(100, (spend / budget) * 100) : 0
+        const overBudget = budget !== null && spend >= budget
+        const isDirty = budgetInput.trim() !== (budget != null ? String(budget) : '')
+        const projected = (() => {
+          const now = new Date()
+          const dom = now.getUTCDate()
+          const dim = new Date(now.getUTCFullYear(), now.getUTCMonth() + 1, 0).getUTCDate()
+          return dom > 0 ? (spend / dom) * dim : spend
+        })()
+        return (
+          <div className="bg-gray-900 border border-white/5 rounded-xl p-5">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h3 className="text-white font-semibold">Monthly budget</h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  Optional cost cap in USD. We email all OWNER/ADMIN members at 50%, 80%, and 100% of your budget.
+                  Calls keep being tracked — this is an early-warning system, not a hard kill switch.
+                </p>
+              </div>
+            </div>
+
+            {budget !== null && (
+              <div className="mt-4">
+                <div className="flex justify-between text-sm text-gray-400 mb-1">
+                  <span>
+                    ${spend.toFixed(2)} spent / ${budget.toFixed(2)} budget
+                    {projected > spend && (
+                      <span className="text-gray-500"> · projected ${projected.toFixed(2)}</span>
+                    )}
+                  </span>
+                  <span className={overBudget ? 'text-red-400 font-semibold' : ''}>
+                    {pct.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className={
+                      'h-full rounded-full transition-all ' +
+                      (overBudget ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-brand-500')
+                    }
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                {overBudget && (
+                  <p className="text-xs text-red-300 mt-2">
+                    Budget exceeded. We&apos;ll keep tracking, but check which agents are spiking — try{' '}
+                    <Link href="/dashboard" className="underline">Top tools</Link>.
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-col sm:flex-row gap-2">
+              <div className="flex-1 relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">$</span>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  placeholder="e.g. 50"
+                  value={budgetInput}
+                  onChange={(e) => setBudgetInput(e.target.value)}
+                  className="w-full bg-gray-950 border border-white/10 rounded-lg pl-7 pr-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-brand-500"
+                />
+              </div>
+              <button
+                onClick={saveBudget}
+                disabled={busy === 'budget' || !isDirty}
+                className="bg-white text-gray-950 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {busy === 'budget' ? 'Saving…' : budget !== null ? 'Update' : 'Set budget'}
+              </button>
+              {budget !== null && (
+                <button
+                  onClick={() => { setBudgetInput(''); void saveBudget() }}
+                  disabled={busy === 'budget'}
+                  className="bg-white/5 border border-white/10 text-gray-300 text-sm px-4 py-2 rounded-lg hover:bg-white/10 disabled:opacity-50"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <p className="mt-3 text-xs text-gray-500">
+              Tip: combine with the Slack webhook below to get pings in-channel too.
+            </p>
+          </div>
+        )
+      })()}
 
       {/* Slack budget alerts — Pricing.tsx promises this on Pro+ */}
       {isPaid && (

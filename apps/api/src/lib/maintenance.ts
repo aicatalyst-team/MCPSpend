@@ -11,7 +11,7 @@
 
 import { prisma } from './prisma'
 import { sendEmail } from './email'
-import { budgetAlertEmail } from '../emails/templates'
+import { budgetAlertEmail, spendAlertEmail } from '../emails/templates'
 import { decrypt } from './crypto'
 
 const RETENTION_DAYS: Record<string, number | null> = {
@@ -71,6 +71,92 @@ async function sendSlack(url: string, payload: { text: string }): Promise<boolea
   } catch {
     return false
   }
+}
+
+// Same 80/100 thresholds for $-budgets, plus a 50% early warning since people
+// notice money sooner than they notice call counts.
+const SPEND_THRESHOLDS = [100, 80, 50] as const
+type SpendLevel = (typeof SPEND_THRESHOLDS)[number]
+
+export async function runSpendAlerts(): Promise<{ orgId: string; level: SpendLevel; channels: string[] }[]> {
+  const sent: { orgId: string; level: SpendLevel; channels: string[] }[] = []
+  const dashboardUrl = process.env.DASHBOARD_URL?.split(',')[0]?.trim() || 'https://mcpspend.com'
+
+  // Only orgs that explicitly set a dollar budget. Free tier users can use
+  // this too — it's a safety net.
+  const orgs = await prisma.organization.findMany({
+    where: { monthlyBudgetUsd: { not: null, gt: 0 } },
+    select: {
+      id: true, name: true, monthlyBudgetUsd: true,
+      slackWebhookUrl: true,
+      lastSpendAlertAt: true, lastSpendAlertLevel: true,
+      members: {
+        where: { role: { in: ['OWNER', 'ADMIN'] } },
+        select: { user: { select: { email: true } } },
+      },
+    },
+  })
+
+  const now = new Date()
+  const monthStart = new Date(now.getUTCFullYear(), now.getUTCMonth(), 1)
+
+  for (const org of orgs) {
+    if (!org.monthlyBudgetUsd || org.monthlyBudgetUsd <= 0) continue
+
+    // Month-to-date spend. Same query the dashboard does, scoped to this org.
+    const agg = await prisma.dailyStats.aggregate({
+      where: { organizationId: org.id, date: { gte: monthStart } },
+      _sum: { costUsd: true },
+    })
+    const spend = agg._sum.costUsd ?? 0
+    const percent = (spend / org.monthlyBudgetUsd) * 100
+    const level = SPEND_THRESHOLDS.find(t => percent >= t)
+    if (!level) continue
+
+    if (
+      org.lastSpendAlertAt &&
+      org.lastSpendAlertLevel !== null &&
+      org.lastSpendAlertLevel !== undefined &&
+      org.lastSpendAlertLevel >= level &&
+      (now.getTime() - org.lastSpendAlertAt.getTime()) < ALERT_THROTTLE_MS
+    ) {
+      continue
+    }
+
+    const channels: string[] = []
+    const recipients = org.members.map(m => m.user.email).filter(Boolean)
+    if (recipients.length > 0) {
+      const { subject, html } = spendAlertEmail({
+        organizationName: org.name,
+        percentUsed: Math.round(percent),
+        spendUsd: spend,
+        budgetUsd: org.monthlyBudgetUsd,
+        dashboardUrl: `${dashboardUrl}/dashboard/billing`,
+      })
+      const r = await sendEmail({ to: recipients, subject, html })
+      if (!r.error) channels.push('email')
+    }
+
+    const slackUrl = decrypt(org.slackWebhookUrl)
+    if (slackUrl) {
+      const emoji = level >= 100 ? '🚨' : level >= 80 ? '⚠️' : 'ℹ️'
+      const ok = await sendSlack(slackUrl, {
+        text:
+          `${emoji} *MCPSpend* — ${org.name} hit *${Math.round(percent)}%* of its $${org.monthlyBudgetUsd.toFixed(2)} cost budget ` +
+          `($${spend.toFixed(2)} spent this month). ` +
+          `<${dashboardUrl}/dashboard/billing|Manage budget>`,
+      })
+      if (ok) channels.push('slack')
+    }
+
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { lastSpendAlertAt: now, lastSpendAlertLevel: level },
+    })
+
+    sent.push({ orgId: org.id, level, channels })
+  }
+  return sent
 }
 
 export async function runBudgetAlerts(): Promise<{ orgId: string; level: AlertLevel; channels: string[] }[]> {
@@ -169,8 +255,9 @@ export function startMaintenanceScheduler(opts: MaintenanceSchedulerOptions = {}
     running = true
     try {
       const retention = await runRetention()
-      const alerts = await runBudgetAlerts()
-      console.log(`[maintenance] retention=${JSON.stringify(retention)} alerts=${alerts.length}`)
+      const quotaAlerts = await runBudgetAlerts()
+      const spendAlerts = await runSpendAlerts()
+      console.log(`[maintenance] retention=${JSON.stringify(retention)} quota_alerts=${quotaAlerts.length} spend_alerts=${spendAlerts.length}`)
     } catch (err) {
       console.error('[maintenance] tick failed:', err)
     } finally {
