@@ -4,14 +4,16 @@ import { runProxy } from './proxy.js'
 import { runInit, formatReport, runDoctor, formatDoctor, reportCompatFromInit } from './init.js'
 import { buildSnippet, formatSnippet, SnippetClient } from './snippet.js'
 import { runHttpBridge } from './http-bridge.js'
+import { runStatsTui } from './stats-tui.js'
 
-const VERSION = '0.5.1'
+const VERSION = '0.6.0'
 
 const HELP = `mcpspend — observability proxy for MCP servers (v${VERSION})
 
 USAGE
   mcpspend init [options]               Auto-detect MCP clients and wrap their servers
   mcpspend doctor                       Diagnose setup (clients, API key, endpoint)
+  mcpspend stats                        Live terminal dashboard (cost, top tools, SSE stream)
   mcpspend wrap [options] -- <cmd>...   Manually wrap a single MCP server invocation
   mcpspend wrap-http [options]          Wrap a REMOTE HTTP MCP server (Figma, etc.)
                                         Speaks stdio to the client, HTTP to the server.
@@ -115,7 +117,7 @@ interface HttpArgs {
 }
 
 interface ParsedArgs {
-  command: 'wrap' | 'wrap-http' | 'config' | 'init' | 'doctor' | 'snippet' | 'help' | 'version'
+  command: 'wrap' | 'wrap-http' | 'config' | 'init' | 'doctor' | 'stats' | 'snippet' | 'help' | 'version'
   configAction?: 'set' | 'show'
   configKey?: string
   configValue?: string
@@ -179,6 +181,11 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   if (cmd === 'doctor') {
     result.command = 'doctor'
+    return result
+  }
+
+  if (cmd === 'stats') {
+    result.command = 'stats'
     return result
   }
 
@@ -328,6 +335,11 @@ async function main() {
     const report = await runDoctor(VERSION)
     process.stdout.write(formatDoctor(report) + '\n')
     if (!report.apiKeyConfigured || !report.endpointReachable) process.exit(1)
+    return
+  }
+
+  if (parsed.command === 'stats') {
+    await runStatsTui()
     return
   }
 
