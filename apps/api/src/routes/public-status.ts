@@ -12,8 +12,22 @@
 import { Router } from 'express'
 import { prisma } from '../lib/prisma'
 import { probeDefinitions } from '../lib/status-probes'
+import { getAllModelPricing } from '../lib/tokenCost'
 
 const router = Router()
+
+// Public price table — auditable cost math. Lets customers verify our
+// estimates against their provider invoices without an API key.
+router.get('/pricing-models', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=3600')
+  res.json({
+    formula: 'cost = (inputTokens / 1000000) * inputPer1M + (outputTokens / 1000000) * outputPer1M',
+    currency: 'USD',
+    lastUpdated: '2026-05-24',
+    fallbackForUnknownModel: { inputPer1M: 3.00, outputPer1M: 15.00, note: 'Claude Sonnet baseline' },
+    models: getAllModelPricing(),
+  })
+})
 
 // In-memory cache so we don't hit Postgres on every page view.
 let cached: { ts: number; payload: unknown } | null = null
