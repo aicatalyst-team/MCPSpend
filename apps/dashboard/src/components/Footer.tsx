@@ -70,6 +70,17 @@ export function Footer() {
                 Status
               </Link>
             </li>
+            <li>
+              <a
+                href="https://buy.stripe.com/00w8wPbUxe1qgK36CRbbG06"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors inline-flex items-center gap-1.5"
+              >
+                <span aria-hidden="true">💖</span>
+                Sponsor
+              </a>
+            </li>
           </ul>
         </div>
       </div>

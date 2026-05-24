@@ -71,6 +71,15 @@ The proxy reports: tool name, server name, model, latency, success, approximate 
 
 Report vulnerabilities: **security@mcpspend.com** · Machine-readable disclosure: <https://mcpspend.com/.well-known/security.txt> · Full policy: [`SECURITY.md`](SECURITY.md) · Live posture: <https://mcpspend.com/security>
 
+## Support the project
+
+If MCPSpend saves you money or you just want to keep the proxy MIT and the free
+tier alive, you can sponsor any amount via Stripe — no account required:
+
+**[💖 buy.stripe.com/00w8wPbUxe1qgK36CRbbG06](https://buy.stripe.com/00w8wPbUxe1qgK36CRbbG06)**
+
+Every dollar goes back into hosting, security audits, and shipping features.
+
 ## License
 
 MIT. Use it, fork it, run it self-hosted.
