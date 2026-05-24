@@ -3,6 +3,7 @@ import { AuthRequest, requireOrg } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 import { cacheGet, cacheSet } from '../lib/redis'
 import { forecastMonth, DailyPoint } from '../lib/forecast'
+import { generateInsights } from '../lib/insights'
 
 const router = Router()
 
@@ -75,6 +76,23 @@ router.get('/overview', requireOrg, async (req: AuthRequest, res) => {
   const result = { daily, totals: totals._sum, topTools, topServers }
   await cacheSet(cacheKey, result, 300)
   res.json(result)
+})
+
+// Weekly auto-generated insights — "what changed this week" narrative for the
+// dashboard. Compares last 7 days to the prior 7 across cost, tools, errors,
+// projects + adds a month-end forecast. Cached 10 min because it's expensive.
+router.get('/insights', requireOrg, async (req: AuthRequest, res) => {
+  const organizationId = req.organizationId!
+  const projectId = req.query.projectId as string | undefined
+
+  const cacheKey = `stats:${organizationId}:insights:${projectId || 'all'}`
+  const cached = await cacheGet(cacheKey)
+  if (cached) { res.json(cached); return }
+
+  const insights = await generateInsights(organizationId, projectId)
+  const payload = { insights, generatedAt: new Date().toISOString() }
+  await cacheSet(cacheKey, payload, 600)
+  res.json(payload)
 })
 
 // Cost prediction — estimate the USD cost of a specific (server, tool[, model])
