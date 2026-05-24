@@ -9,11 +9,12 @@ export function Nav() {
           <Image src="/logo.png" alt="MCPSpend" width={36} height={36} className="w-9 h-9 object-contain" priority />
           <span className="text-white">MCPSpend</span>
         </Link>
-        <div className="hidden md:flex items-center gap-8 text-sm text-gray-400">
-          <a href="#problem" className="hover:text-white transition-colors">The problem</a>
-          <a href="#how" className="hover:text-white transition-colors">How it works</a>
-          <a href="#features" className="hover:text-white transition-colors">Features</a>
-          <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+        <div className="hidden md:flex items-center gap-6 text-sm text-gray-400">
+          <a href="/#how" className="hover:text-white transition-colors">How it works</a>
+          <a href="/#features" className="hover:text-white transition-colors">Features</a>
+          <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+          <Link href="/security" className="hover:text-white transition-colors">Security</Link>
+          <Link href="/compare" className="hover:text-white transition-colors">Compare</Link>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/login" className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:inline">
