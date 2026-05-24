@@ -514,6 +514,152 @@ export async function runActivationDrip(): Promise<{ step: DripStep['label']; se
   return summary
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Real-time anomaly detection — fires webhooks (and Slack if configured)
+// when a tool's hourly cost is meaningfully higher than its trailing
+// hourly baseline. Catches "agent ran amok at 2am" within ~hours instead
+// of waiting for the weekly digest.
+//
+// Algorithm (deliberately simple, no real ML):
+//   - Compute the last hour's cost per tool
+//   - Compare to the median of the same tool's cost across the prior 24h
+//   - Flag if last-hour cost > 3x median AND > $0.50 (skip noise on tiny tools)
+//   - Dedupe per (org, server, tool) via a 6h key in Redis cache
+// ────────────────────────────────────────────────────────────────────────
+
+const ANOMALY_MULTIPLIER = 3
+const ANOMALY_MIN_HOURLY_USD = 0.5
+const ANOMALY_DEDUPE_HOURS = 6
+
+export async function runAnomalyDetection(): Promise<{ orgId: string; alerts: number }[]> {
+  const summary: { orgId: string; alerts: number }[] = []
+  const dashboardUrl =
+    process.env.DASHBOARD_URL?.split(',')[0]?.trim() || 'https://mcpspend.com'
+
+  // Pull every org that has webhook subscriptions to anomaly.detected — no
+  // point computing anomalies for orgs that wouldn't receive them. (Slack
+  // alerts piggyback on the same path so orgs with only Slack still count.)
+  const subscribedOrgs = await prisma.organization.findMany({
+    where: {
+      OR: [
+        { slackWebhookUrl: { not: null } },
+        { webhooks: { some: { isActive: true, events: { has: 'anomaly.detected' } } } },
+      ],
+    },
+    select: { id: true, name: true, slackWebhookUrl: true },
+  })
+
+  if (subscribedOrgs.length === 0) return summary
+
+  const now = new Date()
+  const lastHour = new Date(now.getTime() - 60 * 60 * 1000)
+  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+  // Lazy redis import — anomaly detection should still run if Redis is down,
+  // just without deduplication.
+  let cacheGet: ((k: string) => Promise<unknown>) | null = null
+  let cacheSet: ((k: string, v: unknown, ttl: number) => Promise<void>) | null = null
+  try {
+    const r = await import('./redis')
+    cacheGet = r.cacheGet
+    cacheSet = r.cacheSet
+  } catch {
+    // Redis unavailable — proceed without dedup. Worst case: extra alerts.
+  }
+
+  for (const org of subscribedOrgs) {
+    let alerts = 0
+
+    // Group last-hour cost per (serverName, toolName)
+    const lastHourGroups = await prisma.toolCall.groupBy({
+      by: ['serverName', 'toolName'],
+      where: {
+        organizationId: org.id,
+        calledAt: { gte: lastHour },
+      },
+      _sum: { costUsd: true, inputTokens: true, outputTokens: true },
+      _count: { _all: true },
+    })
+
+    for (const g of lastHourGroups) {
+      const lastHourCost = g._sum.costUsd ?? 0
+      if (lastHourCost < ANOMALY_MIN_HOURLY_USD) continue // noise filter
+
+      // Trailing 24h hourly median — pull raw rows and hash-by-hour
+      const baselineRows = await prisma.toolCall.findMany({
+        where: {
+          organizationId: org.id,
+          serverName: g.serverName,
+          toolName: g.toolName,
+          calledAt: { gte: last24h, lt: lastHour },
+        },
+        select: { costUsd: true, calledAt: true },
+      })
+
+      const hourlyTotals: Record<string, number> = {}
+      for (const row of baselineRows) {
+        const hourKey = row.calledAt.toISOString().slice(0, 13)
+        hourlyTotals[hourKey] = (hourlyTotals[hourKey] || 0) + row.costUsd
+      }
+      const hourly = Object.values(hourlyTotals)
+      if (hourly.length < 6) continue // need at least 6 baseline hours
+
+      hourly.sort((a, b) => a - b)
+      const median = hourly[Math.floor(hourly.length / 2)]
+      if (median <= 0) continue
+      const ratio = lastHourCost / median
+      if (ratio < ANOMALY_MULTIPLIER) continue
+
+      // Dedupe via Redis — never fire twice for the same tool within 6h
+      const dedupeKey = `anomaly:${org.id}:${g.serverName}:${g.toolName}`
+      if (cacheGet) {
+        const seen = await cacheGet(dedupeKey).catch(() => null)
+        if (seen) continue
+      }
+
+      const payload = {
+        organizationName: org.name,
+        serverName: g.serverName,
+        toolName: g.toolName,
+        lastHourCostUsd: Math.round(lastHourCost * 10000) / 10000,
+        baselineMedianUsd: Math.round(median * 10000) / 10000,
+        multiplier: Math.round(ratio * 10) / 10,
+        callCount: g._count._all,
+        dashboardUrl: `${dashboardUrl}/dashboard`,
+      }
+
+      // Fire webhook
+      void dispatchWebhook({
+        organizationId: org.id,
+        eventType: 'anomaly.detected',
+        payload,
+      })
+
+      // Slack alert too, if configured
+      const slackUrl = decrypt(org.slackWebhookUrl)
+      if (slackUrl) {
+        await sendSlack(slackUrl, {
+          text:
+            `🚨 *MCPSpend anomaly* — ${org.name}\n` +
+            `\`${g.serverName}/${g.toolName}\` cost *$${lastHourCost.toFixed(4)}* in the last hour ` +
+            `(${ratio.toFixed(1)}× the 24h median of $${median.toFixed(4)}). ` +
+            `<${dashboardUrl}/dashboard|Open dashboard>`,
+        })
+      }
+
+      if (cacheSet) {
+        await cacheSet(dedupeKey, 1, ANOMALY_DEDUPE_HOURS * 3600).catch(() => {})
+      }
+
+      alerts++
+    }
+
+    if (alerts > 0) summary.push({ orgId: org.id, alerts })
+  }
+
+  return summary
+}
+
 export interface MaintenanceSchedulerOptions {
   // ms between runs. Default 1h.
   intervalMs?: number
@@ -535,7 +681,8 @@ export function startMaintenanceScheduler(opts: MaintenanceSchedulerOptions = {}
       const spendAlerts = await runSpendAlerts()
       const digests = await runWeeklyDigest()
       const drip = await runActivationDrip()
-      console.log(`[maintenance] retention=${JSON.stringify(retention)} quota_alerts=${quotaAlerts.length} spend_alerts=${spendAlerts.length} digests=${digests.length} drip=${JSON.stringify(drip)}`)
+      const anomalies = await runAnomalyDetection()
+      console.log(`[maintenance] retention=${JSON.stringify(retention)} quota_alerts=${quotaAlerts.length} spend_alerts=${spendAlerts.length} digests=${digests.length} drip=${JSON.stringify(drip)} anomalies=${JSON.stringify(anomalies)}`)
     } catch (err) {
       console.error('[maintenance] tick failed:', err)
     } finally {

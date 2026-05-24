@@ -277,6 +277,52 @@ export default function DocsPage() {
           </p>
         </div>
 
+        {/* MCP compatibility matrix — answers 'does it work with X?' before
+            anyone has to email us. cross-spawn handles every shell variant. */}
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+          <p className="text-white font-semibold">Compatible MCP servers</p>
+          <p className="text-sm text-gray-400 mt-1">
+            MCPSpend wraps <strong>any MCP server that speaks the stdio JSON-RPC protocol</strong> — the proxy is a transparent stdio bridge, so the underlying transport doesn&apos;t matter.
+          </p>
+          <div className="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
+            <div>
+              <div className="text-xs uppercase tracking-widest text-emerald-400 font-semibold mb-2">✓ Works out of the box</div>
+              <ul className="text-gray-300 space-y-1 text-xs">
+                <li>• <code>npx</code> / <code>npx --yes</code> servers (most MCP servers on npm)</li>
+                <li>• <code>uvx</code> Python servers (mcp-server-git, etc.)</li>
+                <li>• <code>python</code>, <code>python3</code>, <code>pipx</code></li>
+                <li>• <code>docker run …</code> based servers</li>
+                <li>• <code>node</code>, <code>bun</code>, <code>deno</code> launched scripts</li>
+                <li>• Absolute-path binaries (<code>/usr/local/bin/my-mcp</code>)</li>
+                <li>• Custom shell wrappers + bash scripts</li>
+                <li>• Remote HTTP MCPs via <code>mcpspend wrap-http --url</code> (Figma, Vercel, etc.)</li>
+              </ul>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-widest text-amber-400 font-semibold mb-2">⚠ Not observable from a local proxy</div>
+              <ul className="text-gray-400 space-y-1 text-xs">
+                <li>• <strong>Claude.ai web integrations</strong> (Figma, Gmail, Canva, Vercel, Google Calendar/Drive, ClickUp) — these run server-side at Anthropic; nothing local to wrap</li>
+                <li>• MCPs configured as Anthropic-managed connectors</li>
+              </ul>
+              <p className="text-xs text-gray-500 mt-2">For Claude.ai-managed MCPs, the local proxy has no path to intercept. We observe everything you run locally.</p>
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-white/5 pt-4">
+            <p className="text-xs text-gray-400 mb-2"><strong className="text-white">Verified providers</strong> (in production traffic):</p>
+            <div className="flex flex-wrap gap-1.5 text-xs">
+              {[
+                'filesystem', 'github', 'playwright', 'puppeteer', 'fetch', 'sqlite',
+                'postgres', 'figma (local)', 'slack', 'gmail (local)', 'google-drive (local)',
+                'notion', 'linear', 'jira', 'stripe', 'memory', 'sequentialthinking', 'time',
+                'brave-search', 'tavily', 'firecrawl', 'docker', 'aws-s3', 'redis',
+              ].map((p) => (
+                <span key={p} className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-300 font-mono">{p}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {SECTIONS.map((section) => (
           <div key={section.title} className="mt-12">
             <h2 className="text-2xl font-semibold text-white">{section.title}</h2>
