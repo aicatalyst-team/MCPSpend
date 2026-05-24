@@ -24,6 +24,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/compare/lunary`,     lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${base}/compare/apianalytics`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${base}/blog`,               lastModified: now, changeFrequency: 'weekly',  priority: 0.8 },
+    { url: `${base}/docs`,               lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${base}/legal/data-rights`,  lastModified: now, changeFrequency: 'yearly',  priority: 0.4 },
     { url: `${base}/privacy`,            lastModified: now, changeFrequency: 'yearly',  priority: 0.4 },
     { url: `${base}/terms`,              lastModified: now, changeFrequency: 'yearly',  priority: 0.4 },

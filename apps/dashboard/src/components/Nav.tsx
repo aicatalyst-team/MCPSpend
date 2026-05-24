@@ -16,6 +16,7 @@ export function Nav() {
           <Link href="/security" className="hover:text-white transition-colors">Security</Link>
           <Link href="/compare" className="hover:text-white transition-colors">Compare</Link>
           <Link href="/blog" className="hover:text-white transition-colors">Blog</Link>
+          <Link href="/docs" className="hover:text-white transition-colors">API</Link>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/login" className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:inline">
