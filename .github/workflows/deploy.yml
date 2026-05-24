@@ -56,10 +56,15 @@ jobs:
             exit 1
           fi
 
+  # Worker waits for BOTH API and Dashboard to finish — the webhook target
+  # (api.mcpspend.com/api/internal/redeploy) lives on the API container, so
+  # any in-flight API restart kills our connection (curl returns code=000).
+  # Serializing eliminates the race instead of relying on retry luck.
+  # We also bump retries to 10 × 30s so a slow Coolify queue still recovers.
   deploy-worker:
     name: Deploy Worker
     runs-on: ubuntu-latest
-    needs: [ci, deploy-api]
+    needs: [ci, deploy-api, deploy-dashboard]
     steps:
       - name: Trigger Coolify deploy — Worker
         shell: bash {0}
@@ -68,7 +73,7 @@ jobs:
           UUID: ${{ secrets.COOLIFY_WORKER_UUID }}
         run: |
           ok=0
-          for attempt in 1 2 3 4 5 6; do
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
             code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
               "https://api.mcpspend.com/api/internal/redeploy" \
               -H "X-Deploy-Token: $DEPLOY_SECRET" \
@@ -78,10 +83,10 @@ jobs:
             head -c 400 /tmp/body 2>/dev/null
             echo ""
             if [ "$code" = "200" ]; then ok=1; break; fi
-            sleep 25
+            sleep 30
           done
           if [ "$ok" != "1" ]; then
-            echo "::error::Worker webhook never returned 200 after 6 attempts"
+            echo "::error::Worker webhook never returned 200 after 10 attempts"
             exit 1
           fi
 

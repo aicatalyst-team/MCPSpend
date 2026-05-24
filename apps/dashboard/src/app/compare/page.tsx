@@ -31,6 +31,27 @@ const ALTERNATIVES = [
     summary: 'PostHog is a powerful general analytics platform. It can model anything if you push the right events — including MCP tool calls — but it has no built-in concept of "tool / server / cost", so you build the whole schema yourself.',
     when: 'You already run PostHog and want one less vendor — accepting that you\'ll wire the cost model by hand.',
   },
+  {
+    slug: 'portkey',
+    name: 'Portkey',
+    tag: 'AI gateway',
+    summary: 'Portkey is an AI gateway that sits in front of LLM providers — caching, routing, fallback, guardrails. It tracks cost at the LLM-request level. MCP tool calls only show up if you have already wired Portkey into your stack and instrumented every call.',
+    when: 'You want a smart routing/caching layer between your code and OpenAI/Anthropic — accepting that MCP tool attribution is on you.',
+  },
+  {
+    slug: 'lunary',
+    name: 'Lunary',
+    tag: 'Open-source LLM analytics',
+    summary: 'Lunary is an open-source LLM monitoring + prompt management tool. Strong on user-feedback loops, prompt versioning, and evals. To see MCP tool calls you have to instrument each server with their SDK — out of the box it tracks LLM completions, not MCP tools.',
+    when: 'You want a self-hostable observability stack focused on LLM prompts + evals + user feedback.',
+  },
+  {
+    slug: 'apianalytics',
+    name: 'APIAnalytics',
+    tag: 'Generic API analytics',
+    summary: 'APIAnalytics is a general-purpose API monitoring tool — request volume, latency, status codes. It can technically count MCP requests if you put it in front of your transport, but it has no model, no cost concept, and no awareness of the MCP tool layer.',
+    when: 'You want bare-metal HTTP/API metrics for any service — including but not limited to MCP.',
+  },
 ]
 
 export default function ComparePage() {
