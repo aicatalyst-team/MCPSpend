@@ -268,7 +268,86 @@ const TOOLS = [
     },
     annotations: { title: 'Session details', readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   },
+  {
+    // Public no-auth tool. Smithery scores "time to first success" — letting a
+    // user `tools/call try_demo` BEFORE they create an API key collapses the
+    // onboarding flow to a single click. The numbers are a realistic but
+    // synthetic snapshot of a mid-volume team account.
+    name: 'try_demo',
+    description:
+      'Run this WITHOUT an API key to see what MCPSpend output looks like. Returns a synthetic cost snapshot identical in shape to get_today_cost + list_top_tools + get_usage_this_month. Use this to preview the product before signing up.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        demo: { type: 'boolean', const: true, description: 'Always true — this is sample data.' },
+        organizationName: { type: 'string' },
+        plan: { type: 'string' },
+        today: {
+          type: 'object',
+          properties: {
+            callCount: { type: 'integer' },
+            costUsd: { type: 'number' },
+            inputTokens: { type: 'integer' },
+            outputTokens: { type: 'integer' },
+          },
+          required: ['callCount', 'costUsd', 'inputTokens', 'outputTokens'],
+        },
+        month: {
+          type: 'object',
+          properties: {
+            callsThisMonth: { type: 'integer' },
+            callsLimit: { type: 'integer' },
+            spendUsd: { type: 'number' },
+            budgetUsd: { type: 'number' },
+            percentUsed: { type: 'number' },
+          },
+          required: ['callsThisMonth', 'callsLimit', 'spendUsd', 'budgetUsd', 'percentUsed'],
+        },
+        topTools: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              serverName: { type: 'string' },
+              toolName: { type: 'string' },
+              callCount: { type: 'integer' },
+              costUsd: { type: 'number' },
+            },
+            required: ['serverName', 'toolName', 'callCount', 'costUsd'],
+          },
+        },
+        signUp: { type: 'string', description: 'URL where the caller can create a real account.' },
+      },
+      required: ['demo', 'organizationName', 'plan', 'today', 'month', 'topTools', 'signUp'],
+    },
+    annotations: { title: 'Try demo (no auth)', readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+  },
 ]
+
+// Tools callable WITHOUT an API key. Used by Smithery / MCP clients to preview
+// the server before onboarding. Keep this list tight — every entry is a public
+// endpoint that anyone on the internet can hit.
+const PUBLIC_TOOLS = new Set(['try_demo'])
+
+// Static synthetic snapshot for try_demo. Matches the shape of the live tools
+// so an LLM can interpret it the same way. Numbers picked to feel realistic
+// (~5k calls / $9 budget consumed) without leaking anything from real orgs.
+const DEMO_SNAPSHOT = {
+  demo: true,
+  organizationName: 'Acme Robotics (demo)',
+  plan: 'PRO',
+  today: { callCount: 312, costUsd: 0.4218, inputTokens: 84200, outputTokens: 21400 },
+  month: { callsThisMonth: 5412, callsLimit: 100000, spendUsd: 9.84, budgetUsd: 25, percentUsed: 5.4 },
+  topTools: [
+    { serverName: 'playwright', toolName: 'browser_navigate', callCount: 1820, costUsd: 3.92 },
+    { serverName: 'filesystem', toolName: 'read_file',         callCount:  984, costUsd: 1.71 },
+    { serverName: 'github',     toolName: 'search_repos',       callCount:  612, costUsd: 1.40 },
+    { serverName: 'fetch',      toolName: 'fetch',              callCount:  511, costUsd: 1.05 },
+    { serverName: 'sqlite',     toolName: 'query',              callCount:  287, costUsd: 0.66 },
+  ],
+  signUp: 'https://mcpspend.com/register',
+}
 
 function fmtUsd(n: number | null | undefined): string {
   if (n === null || n === undefined) return '$0.0000'
@@ -497,14 +576,37 @@ router.post('/', async (req, res) => {
         return
 
       case 'tools/call': {
-        if (!organizationId) {
-          reply({ error: { code: -32000, message: 'Authentication required (Bearer API key)' } })
-          return
-        }
         const params = (rpc.params || {}) as { name?: string; arguments?: Record<string, unknown> }
         const name = params.name
         if (!name) {
           reply({ error: { code: -32602, message: 'tools/call missing name' } })
+          return
+        }
+        // Public tools (try_demo) bypass auth so Smithery / MCP clients can
+        // preview output without a key. All real-data tools require Bearer.
+        if (PUBLIC_TOOLS.has(name)) {
+          if (name === 'try_demo') {
+            const lines = [
+              `📊 ${DEMO_SNAPSHOT.organizationName} — ${DEMO_SNAPSHOT.plan} plan (demo data)`,
+              `Today: ${DEMO_SNAPSHOT.today.callCount} calls · ${fmtUsd(DEMO_SNAPSHOT.today.costUsd)}`,
+              `Month: ${DEMO_SNAPSHOT.month.callsThisMonth}/${DEMO_SNAPSHOT.month.callsLimit} calls · ${fmtUsd(DEMO_SNAPSHOT.month.spendUsd)} of $${DEMO_SNAPSHOT.month.budgetUsd} budget (${DEMO_SNAPSHOT.month.percentUsed}%)`,
+              ``,
+              `Top tools by cost:`,
+              ...DEMO_SNAPSHOT.topTools.map(t => `  ${t.serverName}/${t.toolName} — ${t.callCount} calls · ${fmtUsd(t.costUsd)}`),
+              ``,
+              `Sign up at ${DEMO_SNAPSHOT.signUp} to see your own numbers.`,
+            ]
+            reply({
+              result: {
+                content: [{ type: 'text', text: lines.join('\n') }],
+                structuredContent: DEMO_SNAPSHOT,
+              },
+            })
+            return
+          }
+        }
+        if (!organizationId) {
+          reply({ error: { code: -32000, message: 'Authentication required (Bearer API key). Try the public try_demo tool first to preview output.' } })
           return
         }
         try {

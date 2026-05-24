@@ -48,3 +48,25 @@ build:
     RUN npx -y @mcpspend/mcp-server@latest --help 2>/dev/null || true
     ENTRYPOINT ["sh", "-c"]
     CMD ["npx -y @mcpspend/mcp-server@latest"]
+
+# Smithery listing metadata. These render as chips above the fold on the
+# server's catalog page — they boost click-through and help discovery.
+useCases:
+  - Ask "what did my AI agents cost today?" from any MCP client
+  - Find which MCP tools are eating your token budget
+  - Drill into a specific agent session by ID
+  - Monitor month-to-date spend against your plan limit or custom budget
+  - Compare cost across Cursor / Claude Desktop / Windsurf / VS Code
+
+# Try the server WITHOUT an API key by calling the public `try_demo` tool.
+# This lowers onboarding friction for catalog browsers.
+exampleConfigs:
+  - title: Preview (no key required)
+    description: Call try_demo to see what the output looks like before signing up.
+    config:
+      mcpspendApiKey: ""
+  - title: Self-hosted MCPSpend
+    description: Point at your own deployment instead of api.mcpspend.com.
+    config:
+      mcpspendApiKey: mcps_live_your_key_here
+      mcpspendEndpoint: https://mcpspend.your-domain.com
