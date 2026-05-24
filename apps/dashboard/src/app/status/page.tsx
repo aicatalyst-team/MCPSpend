@@ -148,6 +148,111 @@ async function runProbe(probe: Probe): Promise<Check> {
   }
 }
 
+interface UptimePayload {
+  probes: Array<{
+    id: string
+    name: string
+    currentStatus: 'operational' | 'degraded' | 'down' | 'no-data'
+    lastLatencyMs: number | null
+    lastCheckedAt: string | null
+    uptime24h: number | null
+    sampleSize24h: number
+    days: Array<{ date: string; status: 'operational' | 'degraded' | 'down' | 'no-data' }>
+  }>
+  overall: 'operational' | 'degraded' | 'down' | 'no-data'
+  generatedAt: string
+}
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.mcpspend.com'
+
+function UptimeHistory() {
+  const [data, setData] = useState<UptimePayload | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/public/status`)
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then((d: UptimePayload) => setData(d))
+      .catch((e) => setErr(e instanceof Error ? e.message : 'unknown'))
+  }, [])
+
+  if (err) {
+    return (
+      <div className="mt-12">
+        <h2 className="text-sm font-semibold text-gray-300 mb-3">30-day uptime history</h2>
+        <div className="rounded-xl border border-white/5 bg-gray-900 p-6 text-center text-sm text-gray-500">
+          Historical data temporarily unavailable.
+        </div>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="mt-12">
+        <h2 className="text-sm font-semibold text-gray-300 mb-3">30-day uptime history</h2>
+        <div className="rounded-xl border border-white/5 bg-gray-900 p-6 text-center text-sm text-gray-500">
+          Loading history…
+        </div>
+      </div>
+    )
+  }
+
+  const dayColor: Record<string, string> = {
+    operational: 'bg-emerald-500/80 hover:bg-emerald-400',
+    degraded:    'bg-amber-400/80 hover:bg-amber-300',
+    down:        'bg-red-500/80 hover:bg-red-400',
+    'no-data':   'bg-gray-700/40 hover:bg-gray-600/60',
+  }
+
+  return (
+    <div className="mt-12">
+      <div className="flex items-baseline justify-between mb-3">
+        <h2 className="text-sm font-semibold text-gray-300">30-day uptime history</h2>
+        <p className="text-[10px] text-gray-500">Probed every hour from our infrastructure</p>
+      </div>
+
+      <div className="space-y-3">
+        {data.probes.map((p) => {
+          const pct = p.uptime24h != null ? (p.uptime24h * 100).toFixed(2) : null
+          return (
+            <div key={p.id} className="rounded-xl border border-white/5 bg-gray-900 p-4">
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    p.currentStatus === 'operational' ? 'bg-emerald-400'
+                    : p.currentStatus === 'degraded' ? 'bg-amber-400'
+                    : p.currentStatus === 'down' ? 'bg-red-400'
+                    : 'bg-gray-500'
+                  }`} />
+                  <h3 className="text-sm font-semibold text-white">{p.name}</h3>
+                </div>
+                <div className="text-xs text-gray-400">
+                  {pct ? `${pct}% uptime / 24h` : 'no data yet'}
+                  {p.lastLatencyMs != null && <span className="text-gray-500"> · {p.lastLatencyMs}ms</span>}
+                </div>
+              </div>
+              <div className="flex gap-0.5 h-6 items-stretch">
+                {p.days.map((d) => (
+                  <div
+                    key={d.date}
+                    title={`${d.date} — ${d.status}`}
+                    className={`flex-1 rounded-sm transition-colors ${dayColor[d.status]}`}
+                  />
+                ))}
+              </div>
+              <div className="flex justify-between mt-1 text-[10px] text-gray-500">
+                <span>30 days ago</span>
+                <span>Today</span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function overallStatus(checks: Check[]): CheckStatus {
   if (checks.some((c) => c.status === 'down')) return 'down'
   if (checks.some((c) => c.status === 'degraded')) return 'degraded'
@@ -235,6 +340,13 @@ export default function StatusPage() {
             </div>
           ))}
         </div>
+
+        {/* Server-side 30-day uptime history — populated by the worker probing
+            our own endpoints every ~hour and storing results in StatusCheck.
+            This is the trust-signal data: not "operational right now from
+            your browser", but "did we serve your requests over the past 30
+            days from OUR perspective on the VPS". */}
+        <UptimeHistory />
 
         {/* Manual incident notes — none for now */}
         <div className="mt-12">

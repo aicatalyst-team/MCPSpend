@@ -17,6 +17,7 @@ import {
 } from '../emails/templates'
 import { decrypt } from './crypto'
 import { dispatchWebhook } from './webhooks'
+import { runStatusProbes } from './status-probes'
 
 const RETENTION_DAYS: Record<string, number | null> = {
   FREE: 7,
@@ -682,7 +683,8 @@ export function startMaintenanceScheduler(opts: MaintenanceSchedulerOptions = {}
       const digests = await runWeeklyDigest()
       const drip = await runActivationDrip()
       const anomalies = await runAnomalyDetection()
-      console.log(`[maintenance] retention=${JSON.stringify(retention)} quota_alerts=${quotaAlerts.length} spend_alerts=${spendAlerts.length} digests=${digests.length} drip=${JSON.stringify(drip)} anomalies=${JSON.stringify(anomalies)}`)
+      const probes = await runStatusProbes()
+      console.log(`[maintenance] retention=${JSON.stringify(retention)} quota_alerts=${quotaAlerts.length} spend_alerts=${spendAlerts.length} digests=${digests.length} drip=${JSON.stringify(drip)} anomalies=${JSON.stringify(anomalies)} probes=${probes.length}`)
     } catch (err) {
       console.error('[maintenance] tick failed:', err)
     } finally {

@@ -286,6 +286,24 @@ model IngestError {
   createdAt DateTime @default(now())
 }
 
+// ─── Status probes — populate the public /status page ──────────────
+//
+// Worker ticks every ~5 minutes and POSTs to each known endpoint, storing
+// the result here. The /api/public/status endpoint aggregates this into
+// 90-day uptime bars + current state. Truly public — no auth on read.
+model StatusCheck {
+  id        String   @id @default(cuid())
+  probe     String   // 'api' | 'mcp-http' | 'dashboard' | 'ingest' | etc.
+  status    String   // 'operational' | 'degraded' | 'down'
+  latencyMs Int?
+  httpCode  Int?
+  errorMsg  String?
+  createdAt DateTime @default(now())
+
+  @@index([probe, createdAt(sort: Desc)])
+  @@index([createdAt])
+}
+
 // ─── Webhooks — customer-defined POST endpoints for events ──
 //
 // Lets enterprises wire MCPSpend into PagerDuty, Datadog, custom systems,
