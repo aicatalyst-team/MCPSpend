@@ -153,20 +153,13 @@ export function Onboarding() {
     return () => { cancelled = true; clearInterval(id) }
   }, [keys.length, firstCallSeen])
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-16">
-      <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
+  // Must declare ALL hooks before any conditional return — declaring
+  // useState/useEffect after `if (loading) return ...` breaks the rules of
+  // hooks (React error #310) because the hook count changes between renders.
+  const [creatingKey, setCreatingKey] = useState(false)
 
   const hasProject = projects.length > 0
   const hasKey = keys.length > 0
-  const step1: StepState = hasProject ? 'done' : 'active'
-  const step2: StepState = !hasProject ? 'pending' : hasKey ? 'done' : 'active'
-  const step3: StepState = !hasKey ? 'pending' : 'active'
-
-  const newestKey = keys[0]
-  const [creatingKey, setCreatingKey] = useState(false)
 
   async function createQuickKey() {
     if (!hasProject) return
@@ -194,6 +187,18 @@ export function Onboarding() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasProject, hasKey, loading, autoCreating])
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-16">
+      <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+
+  const step1: StepState = hasProject ? 'done' : 'active'
+  const step2: StepState = !hasProject ? 'pending' : hasKey ? 'done' : 'active'
+  const step3: StepState = !hasKey ? 'pending' : 'active'
+
+  const newestKey = keys[0]
 
   return (
     <div className="space-y-6 max-w-4xl">
