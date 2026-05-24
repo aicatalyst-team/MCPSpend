@@ -23,6 +23,7 @@ const navItems = [
   { href: '/dashboard/invitations', label: 'Invitations' },
   { href: '/dashboard/billing', label: 'Billing' },
   { href: '/dashboard/audit', label: 'Audit log' },
+  { href: '/dashboard/account/privacy', label: 'Privacy' },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

@@ -37,10 +37,17 @@ function authHeaders(extra: Record<string, string> = {}): HeadersInit {
   return headers
 }
 
-// Trigger a file download. Used for CSV export. Honors auth + active org headers
-// without going through the JSON-decoding wrapper above.
-export async function apiDownload(path: string, suggestedName: string): Promise<void> {
-  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() })
+// Trigger a file download. Used for CSV/JSON export. Honors auth + active org
+// headers without going through the JSON-decoding wrapper above.
+export async function apiDownload(
+  path: string,
+  suggestedName: string,
+  init: { method?: 'GET' | 'POST' } = {},
+): Promise<void> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: init.method || 'GET',
+    headers: authHeaders(),
+  })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     let payload: unknown

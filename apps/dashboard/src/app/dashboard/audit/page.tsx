@@ -31,6 +31,8 @@ const ACTION_STYLE: Record<string, { label: string; cls: string }> = {
   'org.settings-update':{ label: 'Settings changed', cls: 'text-gray-300 bg-white/5 border-white/10' },
   'project.create':     { label: 'Project created',  cls: 'text-brand-300 bg-brand-500/10 border-brand-500/30' },
   'project.delete':     { label: 'Project deleted',  cls: 'text-red-300 bg-red-500/10 border-red-500/30' },
+  'account.data-export':{ label: 'Data export (GDPR)', cls: 'text-gray-300 bg-white/5 border-white/10' },
+  'account.delete':     { label: 'Account deleted (GDPR)', cls: 'text-red-300 bg-red-500/10 border-red-500/30' },
 }
 
 export default function AuditPage() {

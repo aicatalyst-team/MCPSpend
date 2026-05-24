@@ -63,6 +63,7 @@ export function Footer() {
             <li><Link href="/login" className="hover:text-white transition-colors">Sign in</Link></li>
             <li><Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link></li>
             <li><Link href="/terms" className="hover:text-white transition-colors">Terms</Link></li>
+            <li><Link href="/legal/data-rights" className="hover:text-white transition-colors">Your data rights</Link></li>
             <li>
               <Link href="/status" className="hover:text-white transition-colors inline-flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
