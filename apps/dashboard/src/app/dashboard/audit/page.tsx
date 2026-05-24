@@ -25,6 +25,7 @@ const ACTION_STYLE: Record<string, { label: string; cls: string }> = {
   'key.create':         { label: 'API key created',  cls: 'text-brand-300 bg-brand-500/10 border-brand-500/30' },
   'key.revoke':         { label: 'API key revoked',  cls: 'text-red-300 bg-red-500/10 border-red-500/30' },
   'member.invite':      { label: 'Member invited',   cls: 'text-brand-300 bg-brand-500/10 border-brand-500/30' },
+  'member.invite-revoke':{ label: 'Invitation revoked', cls: 'text-amber-300 bg-amber-500/10 border-amber-500/30' },
   'member.remove':      { label: 'Member removed',   cls: 'text-red-300 bg-red-500/10 border-red-500/30' },
   'member.role-change': { label: 'Role changed',     cls: 'text-amber-300 bg-amber-500/10 border-amber-500/30' },
   'org.settings-update':{ label: 'Settings changed', cls: 'text-gray-300 bg-white/5 border-white/10' },

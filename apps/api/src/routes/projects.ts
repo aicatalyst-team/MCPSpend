@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { AuthRequest, requireOrg, requireRole } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 import { slugify, randomSlugSuffix } from '../lib/slug'
+import { writeAudit } from '../lib/audit'
 
 const router = Router()
 
@@ -65,6 +66,16 @@ router.post('/', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: AuthRequ
     },
     select: { id: true, name: true, slug: true, createdAt: true },
   })
+
+  void writeAudit({
+    organizationId: req.organizationId!,
+    userId: req.userId,
+    action: 'project.create',
+    target: project.id,
+    metadata: { name: project.name, slug: project.slug },
+    req,
+  })
+
   res.status(201).json(project)
 })
 
@@ -74,6 +85,16 @@ router.delete('/:id', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: Aut
   })
   if (!project) { res.status(404).json({ error: 'Not found' }); return }
   await prisma.project.delete({ where: { id: req.params.id } })
+
+  void writeAudit({
+    organizationId: req.organizationId!,
+    userId: req.userId,
+    action: 'project.delete',
+    target: project.id,
+    metadata: { name: project.name, slug: project.slug },
+    req,
+  })
+
   res.status(204).send()
 })
 

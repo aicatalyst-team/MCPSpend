@@ -173,6 +173,16 @@ router.patch('/current/members/:memberId', requireOrg, requireUserSession, requi
     data: { role: parsed.data.role },
     select: { id: true, role: true },
   })
+
+  void writeAudit({
+    organizationId: req.organizationId!,
+    userId: req.userId,
+    action: 'member.role-change',
+    target: updated.id,
+    metadata: { from: target.role, to: updated.role },
+    req,
+  })
+
   res.json(updated)
 })
 
@@ -201,6 +211,16 @@ router.delete('/current/members/:memberId', requireOrg, requireUserSession, asyn
   }
 
   await prisma.organizationMember.delete({ where: { id: req.params.memberId } })
+
+  void writeAudit({
+    organizationId: req.organizationId!,
+    userId: req.userId,
+    action: 'member.remove',
+    target: target.id,
+    metadata: { role: target.role, self: isSelf },
+    req,
+  })
+
   res.status(204).send()
 })
 

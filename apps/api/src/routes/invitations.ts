@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma'
 import { generateInvitationToken, hashInvitationToken, buildAcceptUrl } from '../lib/invitation'
 import { sendEmail } from '../lib/email'
 import { invitationEmail } from '../emails/templates'
+import { writeAudit } from '../lib/audit'
 
 const router = Router()
 
@@ -79,6 +80,15 @@ router.post('/', requireOrg, requireUserSession, requireRole('OWNER', 'ADMIN'), 
     }),
   })
 
+  void writeAudit({
+    organizationId: req.organizationId!,
+    userId: req.userId,
+    action: 'member.invite',
+    target: inv.id,
+    metadata: { email, role: parsed.data.role },
+    req,
+  })
+
   res.status(201).json({
     invitation: inv,
     acceptUrl, // also returned so admins can share the link manually if email is disabled
@@ -109,6 +119,16 @@ router.delete('/:id', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: Aut
   })
   if (!target) { res.status(404).json({ error: 'Invitation not found' }); return }
   await prisma.invitation.delete({ where: { id: req.params.id } })
+
+  void writeAudit({
+    organizationId: req.organizationId!,
+    userId: req.userId,
+    action: 'member.invite-revoke',
+    target: target.id,
+    metadata: { email: target.email },
+    req,
+  })
+
   res.status(204).send()
 })
 
