@@ -196,6 +196,19 @@ const SECTIONS: Array<{ title: string; description: string; endpoints: Endpoint[
     ],
   },
   {
+    title: 'GitHub Action',
+    description: 'Drop-in workflow that posts an MCPSpend cost summary on every PR — the team sees agent spend at the same place they review code.',
+    endpoints: [
+      {
+        method: 'GET',
+        path: 'andreisirbu91-lab/mcpspend-action@v1',
+        summary: 'Composite GitHub Action — see /packages/github-action in the repo.',
+        auth: 'public',
+        notes: 'Add to .github/workflows/mcpspend.yml — needs MCPSPEND_API_KEY secret + pull-requests: write permission. Idempotent: updates the existing comment on push instead of stacking new ones.',
+      },
+    ],
+  },
+  {
     title: 'MCP (HTTP)',
     description: 'JSON-RPC endpoint compatible with the MCP HTTP transport. Query your usage from any MCP client.',
     endpoints: [

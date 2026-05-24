@@ -1,0 +1,106 @@
+name: MCPSpend PR Summary
+description: 'Post an MCPSpend cost summary as a comment on every pull request. Tells the team what their agents have spent this week, broken down by tool.'
+author: MCPSpend
+branding:
+  icon: dollar-sign
+  color: blue
+inputs:
+  api-key:
+    description: 'Your MCPSpend API key (starts with mcps_live_…). Store as a repo secret and pass via ${{ secrets.MCPSPEND_API_KEY }}.'
+    required: true
+  days:
+    description: 'Number of days of usage to summarise (1–365). Default 7.'
+    required: false
+    default: '7'
+  endpoint:
+    description: 'Override the MCPSpend API endpoint. Self-hosted users only.'
+    required: false
+    default: 'https://api.mcpspend.com'
+  project-id:
+    description: 'Restrict the summary to a single project. Omit to include all projects on this API key.'
+    required: false
+    default: ''
+  github-token:
+    description: 'Token used to post the PR comment. Default GITHUB_TOKEN has pull-requests:write when the workflow declares it.'
+    required: false
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - name: Fetch MCPSpend usage + post PR comment
+      shell: bash
+      env:
+        MCPSPEND_API_KEY: ${{ inputs.api-key }}
+        MCPSPEND_DAYS: ${{ inputs.days }}
+        MCPSPEND_ENDPOINT: ${{ inputs.endpoint }}
+        MCPSPEND_PROJECT: ${{ inputs.project-id }}
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      run: |
+        set -e
+
+        if [ -z "$PR_NUMBER" ]; then
+          echo "::warning::Not a pull-request event — skipping."
+          exit 0
+        fi
+
+        # Query MCPSpend
+        QS="days=${MCPSPEND_DAYS}"
+        [ -n "$MCPSPEND_PROJECT" ] && QS="${QS}&projectId=${MCPSPEND_PROJECT}"
+        STATS=$(curl -s --max-time 30 \
+          -H "Authorization: Bearer $MCPSPEND_API_KEY" \
+          "$MCPSPEND_ENDPOINT/api/stats/overview?$QS")
+
+        if [ -z "$STATS" ] || echo "$STATS" | grep -q '"error"'; then
+          echo "::warning::MCPSpend API returned an error: $STATS"
+          exit 0
+        fi
+
+        # Parse with jq (always available on ubuntu-latest)
+        TOTAL_COST=$(echo "$STATS" | jq -r '.totals.costUsd // 0')
+        TOTAL_CALLS=$(echo "$STATS" | jq -r '.totals.callCount // 0')
+        IN_TOKENS=$(echo "$STATS" | jq -r '.totals.inputTokens // 0')
+        OUT_TOKENS=$(echo "$STATS" | jq -r '.totals.outputTokens // 0')
+        TOP_TOOLS=$(echo "$STATS" | jq -r '.topTools[:5] | map("- \(.serverName // \"?\")/\(.toolName) — $\(._sum.costUsd // 0 | tostring | .[0:8])  (\(._sum.callCount // 0) calls)") | join("\n")')
+        TOP_SERVERS=$(echo "$STATS" | jq -r '.topServers[:3] | map("- \(.serverName) — $\(._sum.costUsd // 0 | tostring | .[0:8])  (\(._sum.callCount // 0) calls)") | join("\n")')
+
+        # Format the dollar value to 4 decimals
+        TOTAL_COST_FMT=$(printf '$%.4f' "$TOTAL_COST")
+
+        # Build comment body
+        COMMENT_BODY=$(cat <<EOF
+        🤖 **MCPSpend — agent activity in the last $MCPSPEND_DAYS days**
+
+        | Metric | Value |
+        |---|---|
+        | Total cost | **$TOTAL_COST_FMT** |
+        | Tool calls | $TOTAL_CALLS |
+        | Tokens (in / out) | $IN_TOKENS / $OUT_TOKENS |
+
+        **Top tools by cost:**
+
+        $TOP_TOOLS
+
+        **Top MCP servers:**
+
+        $TOP_SERVERS
+
+        ---
+        _Posted by [MCPSpend](https://mcpspend.com) — observability for the Model Context Protocol._
+        EOF
+        )
+
+        # Idempotency: find an existing MCPSpend comment on this PR and edit it
+        # rather than posting a new one on every push.
+        EXISTING_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" \
+          --jq '.[] | select(.body | startswith("🤖 **MCPSpend")) | .id' \
+          | head -1)
+
+        if [ -n "$EXISTING_ID" ]; then
+          gh api -X PATCH "repos/$REPO/issues/comments/$EXISTING_ID" -f body="$COMMENT_BODY" > /dev/null
+          echo "Updated existing comment #$EXISTING_ID"
+        else
+          gh pr comment "$PR_NUMBER" --body "$COMMENT_BODY" --repo "$REPO"
+          echo "Posted new MCPSpend summary on PR #$PR_NUMBER"
+        fi
