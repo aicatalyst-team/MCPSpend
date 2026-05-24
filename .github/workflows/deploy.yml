@@ -101,8 +101,12 @@ jobs:
           DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
           UUID: ${{ secrets.COOLIFY_DASHBOARD_UUID }}
         run: |
+          # Match the worker job: 10 retries x 30s. The webhook target lives on
+          # the API container so even small API restarts (which happen after a
+          # successful API deploy completes) can race with this call. 5 min of
+          # patience is cheaper than a manual rerun.
           ok=0
-          for attempt in 1 2 3 4 5 6; do
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
             code=$(curl -s -o /tmp/body -w "%{http_code}" --max-time 30 -X POST \
               "https://api.mcpspend.com/api/internal/redeploy" \
               -H "X-Deploy-Token: $DEPLOY_SECRET" \
@@ -112,10 +116,10 @@ jobs:
             head -c 400 /tmp/body 2>/dev/null
             echo ""
             if [ "$code" = "200" ]; then ok=1; break; fi
-            sleep 25
+            sleep 30
           done
           if [ "$ok" != "1" ]; then
-            echo "::error::Dashboard webhook never returned 200 after 6 attempts"
+            echo "::error::Dashboard webhook never returned 200 after 10 attempts"
             exit 1
           fi
 
