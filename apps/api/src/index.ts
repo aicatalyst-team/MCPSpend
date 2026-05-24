@@ -25,8 +25,30 @@ const PORT = process.env.PORT || 4000
 app.set('trust proxy', 1) // behind Coolify / Caddy reverse proxy
 
 app.use(helmet())
+
+// CORS: union of (a) our own production origins, hardcoded so a misconfigured
+// DASHBOARD_URL env var can never block the landing page from calling the API
+// (caught us once when /api/billing/start broke from mcpspend.com), and (b)
+// anything else operators add via the env var (e.g. preview deploys, custom
+// domains, localhost variants).
+const HARDCODED_ALLOWED_ORIGINS = [
+  'https://mcpspend.com',
+  'https://www.mcpspend.com',
+  'https://dashboard.mcpspend.com',
+  'http://localhost:3000',
+  'http://localhost:3001',
+]
+const envOrigins = (process.env.DASHBOARD_URL || '')
+  .split(',').map(s => s.trim()).filter(Boolean)
+const allowedOrigins = Array.from(new Set([...HARDCODED_ALLOWED_ORIGINS, ...envOrigins]))
+
 app.use(cors({
-  origin: (process.env.DASHBOARD_URL || 'http://localhost:3000').split(',').map(s => s.trim()),
+  origin: (origin, cb) => {
+    // Same-origin requests + curl / server-to-server have no Origin header — allow.
+    if (!origin) return cb(null, true)
+    if (allowedOrigins.includes(origin)) return cb(null, true)
+    cb(new Error(`CORS: origin ${origin} not allowed`))
+  },
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Organization-Id'],
 }))
