@@ -66,6 +66,13 @@ const SECTIONS: Array<{ title: string; description: string; endpoints: Endpoint[
       },
       {
         method: 'GET',
+        path: '/api/stats/forecast',
+        summary: 'End-of-month projection with uncertainty band (USD ± stddev).',
+        auth: 'apikey',
+        notes: 'Recency-weighted moving average + day-of-week seasonality. Returns linearProjectedUsd alongside the smart forecast so you can show both.',
+      },
+      {
+        method: 'GET',
         path: '/api/stats/sessions?limit=20&offset=0',
         summary: 'List recent sessions.',
         auth: 'apikey',

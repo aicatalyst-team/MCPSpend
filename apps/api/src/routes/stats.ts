@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { AuthRequest, requireOrg } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 import { cacheGet, cacheSet } from '../lib/redis'
+import { forecastMonth, DailyPoint } from '../lib/forecast'
 
 const router = Router()
 
@@ -74,6 +75,44 @@ router.get('/overview', requireOrg, async (req: AuthRequest, res) => {
   const result = { daily, totals: totals._sum, topTools, topServers }
   await cacheSet(cacheKey, result, 300)
   res.json(result)
+})
+
+// End-of-month forecast — recency-weighted moving average with day-of-week
+// seasonality. Cached 10 min per org because the forecast only meaningfully
+// changes when fresh daily totals land (worker aggregates every 5 min).
+router.get('/forecast', requireOrg, async (req: AuthRequest, res) => {
+  const organizationId = req.organizationId!
+  const projectId = req.query.projectId as string | undefined
+
+  const cacheKey = `stats:${organizationId}:forecast:${projectId || 'all'}`
+  const cached = await cacheGet(cacheKey)
+  if (cached) { res.json(cached); return }
+
+  // Pull 28 days of daily totals — enough for day-of-week seasonality.
+  const since = new Date()
+  since.setUTCDate(since.getUTCDate() - 28)
+  since.setUTCHours(0, 0, 0, 0)
+
+  const rows = await prisma.dailyStats.groupBy({
+    by: ['date'],
+    where: {
+      organizationId,
+      ...(projectId ? { projectId } : {}),
+      date: { gte: since },
+    },
+    _sum: { costUsd: true, callCount: true },
+    orderBy: { date: 'asc' },
+  })
+
+  const daily: DailyPoint[] = rows.map((r) => ({
+    date: r.date.toISOString().slice(0, 10),
+    costUsd: r._sum.costUsd ?? 0,
+    callCount: r._sum.callCount ?? 0,
+  }))
+
+  const forecast = forecastMonth(daily)
+  await cacheSet(cacheKey, forecast, 600)
+  res.json(forecast)
 })
 
 // Top end-customers by cost (per-customer attribution for agencies / SaaS-on-MCP).
