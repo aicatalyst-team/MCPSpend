@@ -19,6 +19,7 @@ export interface ToolCallPayload {
   latencyMs?: number
   success: boolean
   errorCode?: string
+  customerLabel?: string
   calledAt: string
 }
 

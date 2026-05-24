@@ -19,6 +19,10 @@ const singleCallSchema = z.object({
   success: z.boolean().default(true),
   errorCode: z.string().optional(),
   calledAt: z.string().datetime().optional(),
+  // Free-form end-customer identifier (e.g. "customer-acme", "team-platform").
+  // Optional. Lets resellers / agencies / SaaS-on-MCP attribute calls to their
+  // own end-customer. Truncated to 80 chars defensively.
+  customerLabel: z.string().max(80).optional(),
 })
 
 const batchSchema = z.array(singleCallSchema).max(500)
@@ -78,6 +82,11 @@ router.post('/', async (req: AuthRequest, res) => {
       res.status(400).json({ error: 'projectId could not be resolved' })
       return
     }
+    // Customer label resolution: per-call payload > header > unset.
+    // Header form lets a reverse proxy stamp every call with a tenant id
+    // without each caller bothering to include it in the JSON body.
+    const headerLabel = (req.headers['x-mcpspend-customer'] as string | undefined)?.slice(0, 80)
+    const customerLabel = c.customerLabel ?? headerLabel
     resolved.push({
       organizationId,
       projectId,
@@ -91,6 +100,7 @@ router.post('/', async (req: AuthRequest, res) => {
       latencyMs: c.latencyMs,
       success: c.success,
       errorCode: c.errorCode,
+      customerLabel,
       calledAt: c.calledAt || new Date().toISOString(),
     })
   }

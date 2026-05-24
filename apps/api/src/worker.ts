@@ -82,6 +82,7 @@ async function flushBatch() {
         latencyMs: p.latencyMs,
         success: p.success,
         errorCode: p.errorCode,
+        customerLabel: p.customerLabel,
         calledAt: new Date(p.calledAt),
       })),
       skipDuplicates: true,

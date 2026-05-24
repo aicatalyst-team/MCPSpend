@@ -234,12 +234,19 @@ model ToolCall {
   success         Boolean      @default(true)
   errorCode       String?
 
+  // Optional free-form label that lets agencies / SaaS-on-top of MCP attribute
+  // a tool call to their own end-customer. Set via MCPSPEND_CUSTOMER_LABEL env
+  // var per wrapped server, OR via the X-MCPSpend-Customer header on
+  // /v1/ingest. Anything > 80 chars is truncated. NULL = unattributed.
+  customerLabel   String?
+
   calledAt        DateTime     @default(now())
 
   @@index([organizationId, calledAt(sort: Desc)])
   @@index([projectId, calledAt(sort: Desc)])
   @@index([sessionId, calledAt(sort: Desc)])
   @@index([organizationId, toolName, calledAt(sort: Desc)])
+  @@index([organizationId, customerLabel, calledAt(sort: Desc)])
 }
 
 // ─── Daily Stats (pre-aggregated for dashboards) ────────────

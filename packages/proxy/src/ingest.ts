@@ -12,6 +12,7 @@ export interface ToolCallEvent {
   calledAt: string
   projectId?: string
   sessionId?: string
+  customerLabel?: string
 }
 
 const MAX_BATCH = 50
@@ -35,6 +36,7 @@ export class Ingest {
     this.queue.push({
       ...event,
       projectId: event.projectId || this.cfg.projectId,
+      customerLabel: event.customerLabel || this.cfg.customerLabel,
     })
     this.scheduleFlush()
   }

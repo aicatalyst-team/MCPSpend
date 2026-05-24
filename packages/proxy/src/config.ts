@@ -7,6 +7,10 @@ export interface Config {
   endpoint: string
   projectId?: string
   agentName?: string
+  // Optional free-form end-customer identifier. Lets resellers / SaaS-on-MCP
+  // tag every tool call with their own tenant id. Set via the
+  // MCPSPEND_CUSTOMER_LABEL env var on the wrapped server's invocation.
+  customerLabel?: string
   disabled?: boolean
 }
 
@@ -38,6 +42,7 @@ export function loadConfig(cliOverrides: Partial<Config> = {}): Config {
     endpoint: cliOverrides.endpoint || process.env.MCPSPEND_ENDPOINT || file.endpoint || DEFAULT_ENDPOINT,
     projectId: cliOverrides.projectId || process.env.MCPSPEND_PROJECT_ID || file.projectId,
     agentName: cliOverrides.agentName || process.env.MCPSPEND_AGENT_NAME || file.agentName,
+    customerLabel: cliOverrides.customerLabel || process.env.MCPSPEND_CUSTOMER_LABEL || file.customerLabel,
     disabled: cliOverrides.disabled || process.env.MCPSPEND_DISABLED === '1' || file.disabled,
   }
 }

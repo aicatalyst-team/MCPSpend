@@ -76,6 +76,52 @@ router.get('/overview', requireOrg, async (req: AuthRequest, res) => {
   res.json(result)
 })
 
+// Top end-customers by cost (per-customer attribution for agencies / SaaS-on-MCP).
+// Queries ToolCall directly because DailyStats doesn't carry customerLabel —
+// 30-day query against the partial index on (org, customerLabel, calledAt).
+// Cached 5 min like /overview to keep dashboard snappy.
+router.get('/customers', requireOrg, async (req: AuthRequest, res) => {
+  const organizationId = req.organizationId!
+  const days = Math.min(parseInt(req.query.days as string) || 30, 365)
+  const projectId = req.query.projectId as string | undefined
+  const limit = Math.min(parseInt(req.query.limit as string) || 10, 100)
+
+  const cacheKey = `stats:${organizationId}:customers:${days}:${projectId || 'all'}:${limit}`
+  const cached = await cacheGet(cacheKey)
+  if (cached) { res.json(cached); return }
+
+  const since = new Date()
+  since.setUTCDate(since.getUTCDate() - days)
+  since.setUTCHours(0, 0, 0, 0)
+
+  const customers = await prisma.toolCall.groupBy({
+    by: ['customerLabel'],
+    where: {
+      organizationId,
+      ...(projectId ? { projectId } : {}),
+      calledAt: { gte: since },
+      customerLabel: { not: null },
+    },
+    _sum: { costUsd: true, inputTokens: true, outputTokens: true },
+    _count: { _all: true },
+    orderBy: { _sum: { costUsd: 'desc' } },
+    take: limit,
+  })
+
+  const result = {
+    days,
+    customers: customers.map((c) => ({
+      customerLabel: c.customerLabel,
+      callCount: c._count._all,
+      costUsd: c._sum.costUsd ?? 0,
+      inputTokens: c._sum.inputTokens ?? 0,
+      outputTokens: c._sum.outputTokens ?? 0,
+    })),
+  }
+  await cacheSet(cacheKey, result, 300)
+  res.json(result)
+})
+
 router.get('/sessions', requireOrg, async (req: AuthRequest, res) => {
   const organizationId = req.organizationId!
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 100)
