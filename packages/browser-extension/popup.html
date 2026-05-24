@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>MCPSpend for Claude.ai</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px;
+    width: 320px;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    background: #0a0a0a; color: #e5e7eb;
+  }
+  h1 { margin: 0 0 4px; font-size: 16px; color: #fff; font-weight: 700; }
+  p.sub { margin: 0 0 14px; color: #9ca3af; font-size: 11px; line-height: 1.4; }
+  label { display: block; margin: 10px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; font-weight: 600; }
+  input[type=text], input[type=password], input[type=url] {
+    width: 100%; padding: 8px 10px;
+    background: #1f2937; border: 1px solid #374151; border-radius: 6px;
+    color: #fff; font-size: 12px; font-family: SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  input:focus { outline: none; border-color: #0ea5e9; }
+  button {
+    width: 100%; padding: 9px 12px; margin-top: 14px;
+    background: #fff; color: #0a0a0a; font-weight: 700; font-size: 12px;
+    border: none; border-radius: 6px; cursor: pointer;
+  }
+  button:hover { background: #e5e7eb; }
+  button:disabled { background: #374151; color: #6b7280; cursor: not-allowed; }
+  .status {
+    margin-top: 12px; padding: 8px 10px;
+    border-radius: 6px; font-size: 11px;
+    border: 1px solid #1f2937; background: #111827;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .ok { background: #34d399; }
+  .warn { background: #fbbf24; }
+  .err { background: #f87171; }
+  .footer { margin-top: 14px; padding-top: 10px; border-top: 1px solid #1f2937; font-size: 10px; color: #6b7280; text-align: center; line-height: 1.5; }
+  .footer a { color: #38bdf8; text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+  .privacy { background: #0c4a6e26; border: 1px solid #0369a166; border-radius: 6px; padding: 8px 10px; margin-top: 8px; font-size: 10px; color: #7dd3fc; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <h1>MCPSpend</h1>
+  <p class="sub">Track MCP tool calls made by Claude.ai web in your dashboard. Metadata only — never prompts or responses.</p>
+
+  <label for="apiKey">API key</label>
+  <input id="apiKey" type="password" placeholder="mcps_live_…" autocomplete="off" />
+
+  <label for="endpoint">API endpoint (optional)</label>
+  <input id="endpoint" type="url" placeholder="https://api.mcpspend.com" />
+
+  <button id="save">Save</button>
+
+  <div class="status" id="status">
+    <span class="dot warn" id="dot"></span>
+    <span id="msg">Loading…</span>
+  </div>
+
+  <div class="privacy">
+    🔒 The extension only reads tool-call metadata (name, model, token count, latency) from Claude.ai's streamed responses. It cannot read your prompts, tool arguments, or response content.
+  </div>
+
+  <div class="footer">
+    Get a key at <a href="https://mcpspend.com/dashboard/keys" target="_blank">mcpspend.com</a>.<br/>
+    Open source · MIT · v0.1.0
+  </div>
+
+<script src="popup.js"></script>
+</body>
+</html>

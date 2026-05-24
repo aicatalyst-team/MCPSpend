@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "MCPSpend for Claude.ai",
+  "short_name": "MCPSpend",
+  "version": "0.1.0",
+  "description": "Track MCP tool-call costs from inside Claude.ai web. Sends metadata (never prompts/responses) to your MCPSpend dashboard.",
+  "author": "NEW RZS SRL",
+  "homepage_url": "https://mcpspend.com",
+
+  "icons": {
+    "16":  "icons/icon-16.png",
+    "32":  "icons/icon-32.png",
+    "48":  "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+
+  "action": {
+    "default_title": "MCPSpend",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ],
+
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "https://api.mcpspend.com/*"
+  ],
+
+  "minimum_chrome_version": "120"
+}
