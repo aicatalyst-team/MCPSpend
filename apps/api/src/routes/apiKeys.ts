@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { AuthRequest, requireOrg, requireRole } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 import { generateApiKey } from '../lib/apiKey'
+import { writeAudit } from '../lib/audit'
 
 const router = Router()
 
@@ -51,6 +52,15 @@ router.post('/', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: AuthRequ
     select: { id: true, name: true, prefix: true, createdAt: true },
   })
 
+  void writeAudit({
+    organizationId: req.organizationId!,
+    userId: req.userId,
+    action: 'key.create',
+    target: key.id,
+    metadata: { name: key.name, prefix: key.prefix, projectId: parsed.data.projectId },
+    req,
+  })
+
   res.status(201).json({
     ...key,
     plaintext, // shown once — UI must warn the user to copy it now
@@ -71,6 +81,15 @@ router.post('/:id/revoke', requireOrg, requireRole('OWNER', 'ADMIN'), async (req
     data: { revokedAt: new Date() },
     select: { id: true, revokedAt: true },
   })
+
+  void writeAudit({
+    organizationId: req.organizationId!,
+    userId: req.userId,
+    action: 'key.revoke',
+    target: updated.id,
+    req,
+  })
+
   res.json(updated)
 })
 

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import Stripe from 'stripe'
 import { AuthRequest, requireOrg, requireRole, requireUserSession } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
+import { writeAudit } from '../lib/audit'
 
 const router = Router()
 const publicRouter = Router()
@@ -230,6 +231,15 @@ router.post('/cancel', requireOrg, requireUserSession, requireRole('OWNER', 'ADM
       }
     })()
 
+    void writeAudit({
+      organizationId: req.organizationId!,
+      userId: req.userId,
+      action: 'billing.cancel',
+      target: org.stripeSubscriptionId,
+      metadata: { plan: org.plan, cancelAtIso },
+      req,
+    })
+
     res.json({ scheduled: true, cancelAt: cancelAtIso })
   } catch (err) {
     if ((err as Stripe.errors.StripeError)?.code === 'resource_missing') {
@@ -256,6 +266,13 @@ router.post('/resume', requireOrg, requireUserSession, requireRole('OWNER', 'ADM
   }
   try {
     await stripeClient().subscriptions.update(org.stripeSubscriptionId, { cancel_at_period_end: false })
+    void writeAudit({
+      organizationId: req.organizationId!,
+      userId: req.userId,
+      action: 'billing.resume',
+      target: org.stripeSubscriptionId,
+      req,
+    })
     res.json({ resumed: true })
   } catch {
     res.status(500).json({ error: 'Failed to resume subscription' })

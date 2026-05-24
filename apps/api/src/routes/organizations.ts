@@ -4,6 +4,7 @@ import { AuthRequest, requireOrg, requireRole, requireUserSession } from '../mid
 import { prisma } from '../lib/prisma'
 import { slugify, randomSlugSuffix } from '../lib/slug'
 import { encrypt, decrypt } from '../lib/crypto'
+import { writeAudit } from '../lib/audit'
 
 const router = Router()
 
@@ -119,6 +120,16 @@ router.patch('/current', requireOrg, requireRole('OWNER', 'ADMIN'), async (req: 
       slackWebhookUrl: true, monthlyBudgetUsd: true,
     },
   })
+
+  // Log which fields were touched (NOT the values — could be secrets).
+  void writeAudit({
+    organizationId: req.organizationId!,
+    userId: req.userId,
+    action: 'org.settings-update',
+    metadata: { fields: Object.keys(parsed.data) },
+    req,
+  })
+
   res.json({ ...org, slackWebhookUrl: decrypt(org.slackWebhookUrl) })
 })
 
