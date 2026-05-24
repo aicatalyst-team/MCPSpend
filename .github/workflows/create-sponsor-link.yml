@@ -1,0 +1,27 @@
+name: Create Stripe Sponsor Payment Link
+
+# One-shot manual workflow. Run it once from the Actions tab to mint the
+# "Support MCPSpend" Stripe Payment Link, then copy the URL from the job log
+# into .github/FUNDING.yml + README + Footer. After that you can delete this
+# workflow file — it's not needed in CI.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - name: Install API deps
+        run: pnpm install --filter @mcpspend/api --no-frozen-lockfile
+      - name: Run sponsor-link creator
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: pnpm --filter @mcpspend/api exec tsx scripts/create-sponsor-link.ts
