@@ -93,6 +93,36 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Empty-state quick-install cards — visual reassurance that the install
+            handles the user's existing MCP setup automatically. Each card has a
+            concrete config-file path so users without a guide know we know
+            where their MCP config lives. Click any card → setup view. */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          {[
+            { icon: '🟠', name: 'Claude Desktop', detail: 'claude_desktop_config.json' },
+            { icon: '🌀', name: 'Cursor',         detail: '~/.cursor/mcp.json' },
+            { icon: '🌊', name: 'Windsurf',       detail: '~/.codeium/windsurf/' },
+            { icon: '🟦', name: 'VS Code',        detail: '.vscode/mcp.json' },
+            { icon: '🧠', name: 'Claude Code',    detail: '.claude/settings.json' },
+          ].map((ide) => (
+            <button
+              key={ide.name}
+              onClick={() => setShowDemo(false)}
+              className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-left hover:bg-white/[0.04] hover:border-white/20 transition-colors"
+            >
+              <div className="text-xl">{ide.icon}</div>
+              <div className="mt-1 text-sm font-semibold text-white truncate">{ide.name}</div>
+              <div className="mt-0.5 text-[10px] font-mono text-gray-500 truncate">{ide.detail}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-xs text-gray-400 flex items-center gap-3 flex-wrap">
+          <span className="text-emerald-400">✓</span>
+          <span>One command auto-detects every IDE above and wraps every MCP server it finds — no config editing on your side.</span>
+          <a href="/docs" className="text-brand-400 hover:underline ml-auto">See API docs →</a>
+        </div>
+
         <DashboardView overview={demo} demo />
       </div>
     )
