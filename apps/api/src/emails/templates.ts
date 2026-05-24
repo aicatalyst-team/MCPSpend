@@ -299,3 +299,96 @@ export function spendAlertEmail(args: {
     }),
   }
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Activation drip — sent by the maintenance scheduler to users who signed
+// up but never made a single MCP tool call. The biggest leak in our funnel
+// is users who create an account and then don't finish the proxy install.
+// These three emails target that gap, spaced to feel helpful (not spammy).
+// ────────────────────────────────────────────────────────────────────────
+
+/** Day 2: short troubleshooting nudge. Sent only if 0 tool calls yet. */
+export function activationDay2Email(args: { name?: string | null; dashboardUrl: string }) {
+  const greeting = args.name ? `Hi ${args.name},` : 'Hi,'
+  return {
+    subject: "Need a hand installing MCPSpend?",
+    html: shell({
+      title: "Need a hand?",
+      body: `
+        <p>${greeting}</p>
+        <p>I noticed your MCPSpend account hasn&apos;t seen a tool call yet — that&apos;s either fine (you&apos;re busy) or stuck (we&apos;ve all been there). If it&apos;s the second one, the most common gotchas are:</p>
+        <ul style="padding-left:20px;line-height:1.7;">
+          <li><strong>Forgot to restart the IDE</strong> after running <code style="background:#0a0a0a;padding:1px 5px;border-radius:3px;">npx @mcpspend/proxy add</code>. Claude Desktop, Cursor and Windsurf all only re-read MCP config on startup.</li>
+          <li><strong>The IDE doesn&apos;t see any MCP servers</strong> yet — make sure your config has at least one server BEFORE running our installer.</li>
+          <li><strong>npx asked &quot;Ok to proceed? (y)&quot;</strong> and ate your input — re-run with <code style="background:#0a0a0a;padding:1px 5px;border-radius:3px;">--yes</code>.</li>
+        </ul>
+        <p>The fastest diagnostic is one command:</p>
+        <p style="background:#0a0a0a;border-left:3px solid ${BRAND_COLOR};padding:10px 14px;border-radius:4px;font-family:SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;color:#7dd3fc;">npx @mcpspend/proxy doctor</p>
+        <p>It shows you which clients are detected, whether your key resolves, and whether the API endpoint is reachable. Paste the output back to me and I&apos;ll tell you exactly what to fix.</p>
+        <p>— Andrei</p>
+      `,
+      ctaText: 'Open dashboard',
+      ctaUrl: args.dashboardUrl,
+    }),
+  }
+}
+
+/** Day 5: offer a 15-min call. Last reasonable attempt before reactivation. */
+export function activationDay5Email(args: { name?: string | null; dashboardUrl: string; calendarUrl?: string }) {
+  const greeting = args.name ? `Hi ${args.name},` : 'Hi,'
+  // Cal.com link is optional — if not configured, we fall back to email + the
+  // doctor command so the message still ships value.
+  const callBlock = args.calendarUrl
+    ? `<p>If you have 15 minutes this week, grab a slot — I&apos;ll screenshare with you and we&apos;ll get your first tool call landing live: <a href="${args.calendarUrl}" style="color:${BRAND_COLOR};">${args.calendarUrl}</a></p>`
+    : `<p>If you have 15 minutes this week, reply to this email with a time that works and I&apos;ll screenshare with you to get your first tool call landing live.</p>`
+  return {
+    subject: 'Want me to debug your MCPSpend install (15 min, free)?',
+    html: shell({
+      title: 'Free debug session',
+      body: `
+        <p>${greeting}</p>
+        <p>Five days in and still no tool call data — that usually means one of two things:</p>
+        <ol style="padding-left:20px;line-height:1.7;">
+          <li><strong>You&apos;re evaluating multiple tools</strong> and haven&apos;t decided yet. Totally fair. Reply with what would tip the scales for MCPSpend specifically (we&apos;re a small team and the feedback genuinely shapes the roadmap).</li>
+          <li><strong>You hit an install snag</strong> and moved on. That&apos;s on us.</li>
+        </ol>
+        ${callBlock}
+        <p>Or, if you prefer to debug solo, run this in your terminal and reply with the output:</p>
+        <p style="background:#0a0a0a;border-left:3px solid ${BRAND_COLOR};padding:10px 14px;border-radius:4px;font-family:SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;color:#7dd3fc;">npx @mcpspend/proxy doctor</p>
+        <p>No pressure either way. Thanks for trying it!</p>
+        <p>— Andrei (NEW RZS SRL, Bucharest)</p>
+      `,
+      ctaText: args.calendarUrl ? 'Book 15 min' : 'Open dashboard',
+      ctaUrl: args.calendarUrl ?? args.dashboardUrl,
+    }),
+  }
+}
+
+/** Day 14: reactivation — share what shipped since signup, last-ditch touch. */
+export function reactivationDay14Email(args: { name?: string | null; dashboardUrl: string }) {
+  const greeting = args.name ? `Hi ${args.name},` : 'Hi,'
+  return {
+    subject: 'Quick MCPSpend update — what we shipped since you signed up',
+    html: shell({
+      title: 'What we shipped',
+      body: `
+        <p>${greeting}</p>
+        <p>It&apos;s been two weeks since you created your MCPSpend account. We don&apos;t want to spam — this is the last email until you start using it. Quick recap of what shipped recently:</p>
+        <ul style="padding-left:20px;line-height:1.7;">
+          <li>One-command install via <code style="background:#0a0a0a;padding:1px 5px;border-radius:3px;">npx @mcpspend/proxy add</code> — auto-detects every MCP client</li>
+          <li>Per-tool dollar attribution with alert dots on the top spenders</li>
+          <li>$ budget alerts via email + Slack at 50/80/100%</li>
+          <li>GDPR Art. 15/17/20 self-serve</li>
+          <li>Audit log on Team+</li>
+        </ul>
+        <p>If MCPSpend isn&apos;t the right fit, I&apos;d genuinely love a 2-sentence reply telling me why — it&apos;s the most valuable feedback I can get pre-launch. The bar is low: &quot;the install didn&apos;t work&quot; or &quot;I don&apos;t care about cost yet&quot; both help.</p>
+        <p>If you want to give it another shot, the doctor command will tell you exactly what&apos;s missing:</p>
+        <p style="background:#0a0a0a;border-left:3px solid ${BRAND_COLOR};padding:10px 14px;border-radius:4px;font-family:SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;color:#7dd3fc;">npx @mcpspend/proxy doctor</p>
+        <p>Thanks for signing up either way.</p>
+        <p>— Andrei</p>
+      `,
+      ctaText: 'Open dashboard',
+      ctaUrl: args.dashboardUrl,
+    }),
+  }
+}

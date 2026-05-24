@@ -11,7 +11,10 @@
 
 import { prisma } from './prisma'
 import { sendEmail } from './email'
-import { budgetAlertEmail, spendAlertEmail, weeklyDigestEmail } from '../emails/templates'
+import {
+  budgetAlertEmail, spendAlertEmail, weeklyDigestEmail,
+  activationDay2Email, activationDay5Email, reactivationDay14Email,
+} from '../emails/templates'
 import { decrypt } from './crypto'
 
 const RETENTION_DAYS: Record<string, number | null> = {
@@ -374,6 +377,114 @@ export async function runWeeklyDigest(): Promise<{ orgId: string; channels: stri
   return sent
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// Activation drip — sends day-2 / day-5 / day-14 emails to users who
+// signed up but never made a tool call. The biggest leak in the funnel.
+// We dedupe per user via timestamp columns so a worker crash or extra
+// scheduler tick can NEVER double-send.
+// ────────────────────────────────────────────────────────────────────────
+
+interface DripStep {
+  label: 'day2' | 'day5' | 'day14'
+  minAgeHours: number
+  maxAgeHours: number
+  sentColumn: 'activationDay2SentAt' | 'activationDay5SentAt' | 'reactivationDay14SentAt'
+  buildEmail: (args: { name: string | null; dashboardUrl: string; calendarUrl?: string }) => { subject: string; html: string }
+}
+
+const DRIP_STEPS: DripStep[] = [
+  {
+    label: 'day2',
+    minAgeHours: 36,
+    maxAgeHours: 96, // ~1.5–4 days; gives slack for the once-per-hour tick
+    sentColumn: 'activationDay2SentAt',
+    buildEmail: ({ name, dashboardUrl }) => activationDay2Email({ name, dashboardUrl }),
+  },
+  {
+    label: 'day5',
+    minAgeHours: 5 * 24,
+    maxAgeHours: 7 * 24,
+    sentColumn: 'activationDay5SentAt',
+    buildEmail: ({ name, dashboardUrl, calendarUrl }) =>
+      activationDay5Email({ name, dashboardUrl, calendarUrl }),
+  },
+  {
+    label: 'day14',
+    minAgeHours: 14 * 24,
+    maxAgeHours: 17 * 24,
+    sentColumn: 'reactivationDay14SentAt',
+    buildEmail: ({ name, dashboardUrl }) => reactivationDay14Email({ name, dashboardUrl }),
+  },
+]
+
+export async function runActivationDrip(): Promise<{ step: DripStep['label']; sent: number }[]> {
+  const summary: { step: DripStep['label']; sent: number }[] = []
+  const dashboardUrl =
+    process.env.DASHBOARD_URL?.split(',')[0]?.trim() || 'https://mcpspend.com'
+  const calendarUrl = process.env.CALENDAR_BOOKING_URL // optional, used only on day-5
+  const now = Date.now()
+
+  for (const step of DRIP_STEPS) {
+    const windowStart = new Date(now - step.maxAgeHours * 3600 * 1000)
+    const windowEnd = new Date(now - step.minAgeHours * 3600 * 1000)
+
+    // Candidates: created in this step's age window AND haven't received it yet.
+    const candidates = await prisma.user.findMany({
+      where: {
+        createdAt: { gte: windowStart, lte: windowEnd },
+        [step.sentColumn]: null,
+      },
+      select: {
+        id: true, email: true, name: true,
+        memberships: { select: { organizationId: true }, take: 1 },
+      },
+      take: 200, // safety cap per tick
+    })
+
+    let sent = 0
+    for (const u of candidates) {
+      // Skip if user already has tool-call activity (data flowing = activated).
+      const orgIds = u.memberships.map((m) => m.organizationId)
+      if (orgIds.length > 0) {
+        const callExists = await prisma.toolCall.findFirst({
+          where: { organizationId: { in: orgIds } },
+          select: { id: true },
+        })
+        if (callExists) {
+          // Mark all steps as "sent" so we never bug this user again.
+          await prisma.user.update({
+            where: { id: u.id },
+            data: {
+              activationDay2SentAt: new Date(),
+              activationDay5SentAt: new Date(),
+              reactivationDay14SentAt: new Date(),
+            },
+          })
+          continue
+        }
+      }
+
+      const email = step.buildEmail({ name: u.name, dashboardUrl, calendarUrl })
+      try {
+        await sendEmail({ to: u.email, ...email })
+      } catch (err) {
+        console.error(`[activation-drip] failed to send ${step.label} to ${u.email}:`, err)
+        // Still stamp the column so we don't retry forever. Resend transient
+        // failures are rare; better to skip one user than re-send to many.
+      }
+      await prisma.user.update({
+        where: { id: u.id },
+        data: { [step.sentColumn]: new Date() },
+      })
+      sent++
+    }
+
+    if (sent > 0) summary.push({ step: step.label, sent })
+  }
+
+  return summary
+}
+
 export interface MaintenanceSchedulerOptions {
   // ms between runs. Default 1h.
   intervalMs?: number
@@ -394,7 +505,8 @@ export function startMaintenanceScheduler(opts: MaintenanceSchedulerOptions = {}
       const quotaAlerts = await runBudgetAlerts()
       const spendAlerts = await runSpendAlerts()
       const digests = await runWeeklyDigest()
-      console.log(`[maintenance] retention=${JSON.stringify(retention)} quota_alerts=${quotaAlerts.length} spend_alerts=${spendAlerts.length} digests=${digests.length}`)
+      const drip = await runActivationDrip()
+      console.log(`[maintenance] retention=${JSON.stringify(retention)} quota_alerts=${quotaAlerts.length} spend_alerts=${spendAlerts.length} digests=${digests.length} drip=${JSON.stringify(drip)}`)
     } catch (err) {
       console.error('[maintenance] tick failed:', err)
     } finally {

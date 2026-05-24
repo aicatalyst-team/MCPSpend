@@ -18,6 +18,13 @@ model User {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // Activation drip — timestamps for each step in the welcome sequence so
+  // the maintenance scheduler never sends the same email twice. NULL means
+  // not sent yet; sent timestamp means delivered (or attempted).
+  activationDay2SentAt   DateTime?
+  activationDay5SentAt   DateTime?
+  reactivationDay14SentAt DateTime?
+
   memberships     OrganizationMember[]
   invitationsSent Invitation[]         @relation("InvitedBy")
   apiKeysCreated  ApiKey[]             @relation("CreatedBy")
