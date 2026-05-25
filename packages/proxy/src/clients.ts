@@ -246,7 +246,7 @@ export function writeClientConfig(path: string, config: ClientConfig, backupSuff
 
 export interface WrapResult {
   serverName: string
-  status: 'wrapped' | 'already-wrapped' | 'skipped'
+  status: 'wrapped' | 'already-wrapped' | 'rekeyed' | 'skipped'
   reason?: string
 }
 
@@ -268,6 +268,20 @@ function isProxyPackageArg(pkgArg: string | undefined): boolean {
   if (!pkgArg) return false
   if (pkgArg === PROXY_PKG) return true
   return pkgArg.startsWith(PROXY_PKG + '@')
+}
+
+/** Read the --key value out of an already-wrapped entry. Returns null if not
+ * wrapped or no --key was set. Used by `wrapAllServers` so that switching
+ * accounts (new key passed via `init --key`) re-wraps existing entries with
+ * the new key instead of silently leaving the old one in place. */
+export function extractWrappedKey(entry: McpServerEntry): string | null {
+  if (!isAlreadyWrapped(entry)) return null
+  const args = entry.args || []
+  const sepIdx = args.indexOf('--')
+  const search = sepIdx === -1 ? args : args.slice(0, sepIdx)
+  const i = search.indexOf('--key')
+  if (i === -1 || i + 1 >= search.length) return null
+  return search[i + 1]
 }
 
 export function isAlreadyWrapped(entry: McpServerEntry): boolean {
@@ -366,6 +380,22 @@ export function wrapAllServers(
       continue
     }
     if (isAlreadyWrapped(entry)) {
+      // Key-rotation path: when init is invoked with a new --key, transparently
+      // re-wrap any entries that still carry an older key. Otherwise users who
+      // switch organizations get a silent attribution bug (calls keep flowing
+      // to the old org). When no opts.apiKey is passed we preserve the current
+      // wrap so we don't strip a working key just because someone re-ran init.
+      if (opts.apiKey) {
+        const currentKey = extractWrappedKey(entry)
+        if (currentKey && currentKey !== opts.apiKey) {
+          const restored = unwrapEntry(entry)
+          if (restored) {
+            next[name] = wrapEntry(restored, opts)
+            results.push({ serverName: name, status: 'rekeyed' })
+            continue
+          }
+        }
+      }
       next[name] = entry
       results.push({ serverName: name, status: 'already-wrapped' })
       continue

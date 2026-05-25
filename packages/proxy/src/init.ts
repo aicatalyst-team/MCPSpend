@@ -178,7 +178,7 @@ export async function reportCompatFromInit(cliVersion: string, init: InitReport)
       configFormat: format,
       topLevelKeysFingerprint: fp,
       serverCount: r.servers.length,
-      wrappedCount: r.servers.filter((s) => s.status === 'wrapped' || s.status === 'already-wrapped').length,
+      wrappedCount: r.servers.filter((s) => s.status === 'wrapped' || s.status === 'already-wrapped' || s.status === 'rekeyed').length,
     }
   })
   await sendCompatReport({
@@ -220,10 +220,11 @@ export function formatReport(report: InitReport, unwrap = false): string {
     for (const s of r.servers) {
       const sym =
         s.status === 'wrapped' ? '+'
+        : s.status === 'rekeyed' ? '↻'
         : s.status === 'already-wrapped' ? '='
         : '·'
-      const reason = s.reason ? ` (${s.reason})` : ''
-      lines.push(`      ${sym} ${s.serverName}${reason}`)
+      const reasonText = s.status === 'rekeyed' && !s.reason ? ' (key updated to current --key)' : s.reason ? ` (${s.reason})` : ''
+      lines.push(`      ${sym} ${s.serverName}${reasonText}`)
     }
   }
 
