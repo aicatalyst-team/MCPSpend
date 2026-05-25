@@ -2,6 +2,12 @@
   "name": "mcpspend",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/andreisirbu91-lab/MCPSpend.git"
+  },
+  "homepage": "https://mcpspend.com",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
