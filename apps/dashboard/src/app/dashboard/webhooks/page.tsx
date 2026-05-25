@@ -14,7 +14,7 @@ interface Webhook {
   lastDeliveryStatus: number | null
   consecutiveFailures: number
   createdAt: string
-  createdBy: { id: string; email: string; name: string | null }
+  createdByUserId: string
 }
 
 interface CreatedWebhook extends Webhook {

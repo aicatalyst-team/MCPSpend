@@ -16,15 +16,18 @@ const router = Router()
 // List webhooks for current org (no secret in response — that's only ever
 // shown once at creation time).
 router.get('/', requireOrg, async (req: AuthRequest, res) => {
+  // No relation on Webhook.createdBy — the schema only has the scalar
+  // createdByUserId column. Selecting `createdBy` here crashed Prisma at
+  // runtime with "Unknown field createdBy" and bubbled up to the dashboard
+  // as "Failed to load webhooks". The UI doesn't render it anyway.
   const webhooks = await prisma.webhook.findMany({
     where: { organizationId: req.organizationId! },
     orderBy: { createdAt: 'desc' },
     select: {
       id: true, label: true, targetUrl: true, events: true,
       isActive: true, lastDeliveryAt: true, lastDeliveryStatus: true,
-      consecutiveFailures: true, createdAt: true,
-      createdBy: { select: { id: true, email: true, name: true } },
-    } as never,
+      consecutiveFailures: true, createdAt: true, createdByUserId: true,
+    },
   })
   res.json(webhooks)
 })

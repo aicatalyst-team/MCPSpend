@@ -253,7 +253,7 @@ export function Onboarding() {
               ✓ Active key: <code className="font-mono text-xs text-brand-300">{newestKey.prefix}</code>
               {newestKey.project && <> (scoped to <span className="text-white">{newestKey.project.name}</span>)</>}
             </p>
-            {revealKey && (
+            {revealKey ? (
               <div className="mt-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
                 <p className="text-xs text-emerald-200 mb-2">Copy your key now — this is the only time the full secret is shown:</p>
                 <div className="flex items-center gap-2">
@@ -265,6 +265,22 @@ export function Onboarding() {
                     Copy
                   </button>
                 </div>
+              </div>
+            ) : (
+              // Returning user: hashed key is in the DB but we can't recover
+              // the plaintext. Without this branch the Step 3 "Copy command"
+              // button stays disabled forever because keyIsFull = !!revealKey.
+              <div className="mt-3 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 flex items-center gap-3 flex-wrap">
+                <p className="text-xs text-amber-200 flex-1 min-w-[200px]">
+                  Lost the secret? We can&apos;t show it again (it&apos;s hashed). Generate a fresh key to unblock the install command.
+                </p>
+                <button
+                  onClick={createQuickKey}
+                  disabled={creatingKey}
+                  className="bg-white text-gray-950 text-xs font-semibold px-3 py-2 rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  {creatingKey ? 'Generating…' : 'Generate fresh key'}
+                </button>
               </div>
             )}
           </div>
@@ -332,6 +348,7 @@ function Step3Install({ apiKey, keyIsFull, tab, setTab }: {
           <button
             onClick={copyInit}
             disabled={!keyIsFull}
+            title={keyIsFull ? undefined : 'Generate a fresh key in step 2 first — the secret is hashed, we can\'t reveal an existing one.'}
             className={
               'text-xs font-semibold px-3 py-1 rounded transition-colors ' +
               (keyIsFull
@@ -341,7 +358,7 @@ function Step3Install({ apiKey, keyIsFull, tab, setTab }: {
                 : 'bg-white/5 text-gray-500 cursor-not-allowed')
             }
           >
-            {copied ? '✓ Copied' : 'Copy command'}
+            {copied ? '✓ Copied' : keyIsFull ? 'Copy command' : 'Reveal key first ↑'}
           </button>
         </div>
         <pre className="p-3 text-xs text-gray-200 font-mono overflow-x-auto whitespace-pre-wrap break-all">{initCommand}</pre>
