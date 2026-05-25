@@ -6,8 +6,13 @@
 [![npm version](https://img.shields.io/npm/v/@mcpspend/proxy.svg)](https://www.npmjs.com/package/@mcpspend/proxy)
 [![Open VSX](https://img.shields.io/open-vsx/v/McpSpend/mcpspend-vscode)](https://open-vsx.org/extension/McpSpend/mcpspend-vscode)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![MCPSpend MCP server](https://glama.ai/mcp/servers/andreisirbu91-lab/MCPSpend/badges/score.svg)](https://glama.ai/mcp/servers/andreisirbu91-lab/MCPSpend)
 
-**[mcpspend.com](https://mcpspend.com)** · **[Smithery](https://smithery.ai/servers/andreisirbu91-lab/mcpspend)** · **[npm](https://www.npmjs.com/package/@mcpspend/proxy)** · **[Open VSX](https://open-vsx.org/extension/McpSpend/mcpspend-vscode)**
+**[mcpspend.com](https://mcpspend.com)** · **[Smithery](https://smithery.ai/servers/andreisirbu91-lab/mcpspend)** · **[npm](https://www.npmjs.com/package/@mcpspend/proxy)** · **[Open VSX](https://open-vsx.org/extension/McpSpend/mcpspend-vscode)** · **[Glama](https://glama.ai/mcp/servers/andreisirbu91-lab/MCPSpend)**
+
+<a href="https://glama.ai/mcp/servers/andreisirbu91-lab/MCPSpend">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/andreisirbu91-lab/MCPSpend/badges/card.svg" alt="MCPSpend MCP server card" />
+</a>
 
 ---
 
