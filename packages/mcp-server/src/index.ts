@@ -57,17 +57,22 @@ interface SessionResp {
   project: { id: string; name: string } | null
 }
 
-function requireApiKey(): string {
-  const key = process.env.MCPSPEND_API_KEY
-  if (!key) {
-    process.stderr.write(
-      '[mcpspend-mcp-server] MCPSPEND_API_KEY env var is required.\n' +
-      '  Get a key at https://mcpspend.com/dashboard/keys\n'
-    )
-    process.exit(1)
-  }
-  return key
+/**
+ * Read the API key from the environment. Returns null when missing so callers
+ * can decide what to do — most importantly, the server itself boots and
+ * advertises tools/list even without a key. Introspection tools (Glama, the
+ * MCP Inspector, Smithery scanners) rely on this, and so do humans who want
+ * to inspect what the server exposes before signing up. tools/call returns
+ * a friendly "set MCPSPEND_API_KEY" error in that case — the process never
+ * exits behind the user's back.
+ */
+function readApiKey(): string | null {
+  return process.env.MCPSPEND_API_KEY || null
 }
+
+const MISSING_KEY_MESSAGE =
+  'MCPSPEND_API_KEY env var is not set. ' +
+  'Get a key at https://mcpspend.com/dashboard/keys and add it to your MCP client config.'
 
 function endpoint(): string {
   return process.env.MCPSPEND_ENDPOINT || DEFAULT_ENDPOINT
@@ -308,7 +313,6 @@ async function handleTool(name: string, args: Record<string, unknown>, key: stri
 }
 
 async function main() {
-  const key = requireApiKey()
   const server = new Server(
     { name: 'mcpspend', version: VERSION },
     { capabilities: { tools: {} } },
@@ -318,6 +322,13 @@ async function main() {
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const { name, arguments: rawArgs } = req.params
+    const key = readApiKey()
+    if (!key) {
+      return {
+        content: [{ type: 'text', text: MISSING_KEY_MESSAGE }],
+        isError: true,
+      }
+    }
     try {
       const text = await handleTool(name, (rawArgs || {}) as Record<string, unknown>, key)
       return { content: [{ type: 'text', text }] }
