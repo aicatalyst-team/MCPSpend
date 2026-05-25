@@ -6,20 +6,20 @@
     "url": "https://github.com/andreisirbu91-lab/MCPSpend",
     "source": "github"
   },
-  "version": "0.2.0",
+  "version": "0.2.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@mcpspend/mcp-server",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
           "name": "MCPSPEND_API_KEY",
-          "description": "Your MCPSpend API key. Create one at https://mcpspend.com/dashboard/keys. Starts with mcps_live_ or mcps_test_.",
-          "isRequired": true,
+          "description": "Your MCPSpend API key. Create one at https://mcpspend.com/dashboard/keys. Starts with mcps_live_ or mcps_test_. Optional — the server boots and lists tools without it; only tool calls require auth.",
+          "isRequired": false,
           "isSecret": true,
           "format": "string"
         },
