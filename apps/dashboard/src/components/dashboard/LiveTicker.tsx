@@ -47,7 +47,14 @@ export function LiveTicker() {
     eventSourceRef.current = es
 
     es.addEventListener('hello', () => setConnected(true))
-    es.addEventListener('error', () => setConnected(false))
+    // 'error' fires whenever the SSE stream drops — API container restart,
+    // HTTP/2 protocol hiccup behind Caddy, idle proxy timeout, etc. EventSource
+    // auto-reconnects on its own; we just flip the dot to gray and let it.
+    // Don't propagate to console — these are routine for long-lived streams.
+    es.addEventListener('error', (ev: Event) => {
+      setConnected(false)
+      ev.preventDefault?.()
+    })
     es.addEventListener('message', (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data) as LiveEvent
