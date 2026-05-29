@@ -1,0 +1,16 @@
+.git
+*.md
+LICENSE
+kubernetes/
+poc-plan.md
+tests/
+docs/
+__pycache__/
+node_modules/
+.env*
+*.pyc
+dist/
+.next/
+coverage/
+.nyc_output/
+.cache/

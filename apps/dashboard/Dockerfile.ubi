@@ -1,0 +1,56 @@
+# MCPSpend Dashboard - UBI Container
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS base
+
+USER 0
+RUN dnf install -y npm && \
+    npm install -g pnpm@9.15.0 && \
+    dnf clean all
+USER 1001
+
+WORKDIR /opt/app-root/src
+
+FROM base AS deps
+
+# Copy workspace root files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+
+# Copy component package.json files  
+COPY apps/dashboard/package.json ./apps/dashboard/
+
+RUN NODE_ENV=development pnpm install --frozen-lockfile --filter @mcpspend/dashboard
+
+FROM deps AS builder
+
+COPY apps/dashboard ./apps/dashboard
+
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm --filter @mcpspend/dashboard run build
+
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS runner
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME="0.0.0.0"
+
+WORKDIR /opt/app-root/src
+
+# Copy Next.js standalone build output
+COPY --from=builder /opt/app-root/src/apps/dashboard/.next/standalone ./
+COPY --from=builder /opt/app-root/src/apps/dashboard/.next/static ./apps/dashboard/.next/static
+
+# Create and copy public directory
+RUN mkdir -p ./apps/dashboard/public
+COPY --from=builder /opt/app-root/src/apps/dashboard/public ./apps/dashboard/public/
+
+# Set up OpenShift compatibility
+RUN chgrp -R 0 /opt/app-root && chmod -R g=u /opt/app-root
+
+# Use non-root user
+USER 1001
+
+# Use non-privileged port  
+EXPOSE 3000
+ENV PORT=3000
+
+# Start Next.js server
+CMD ["node", "apps/dashboard/server.js"]

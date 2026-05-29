@@ -1,0 +1,59 @@
+# MCPSpend API Worker - UBI Container
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS base
+
+USER 0
+RUN dnf install -y npm && \
+    npm install -g pnpm@9.15.0 && \
+    dnf clean all
+USER 1001
+
+WORKDIR /opt/app-root/src
+
+FROM base AS deps
+
+# Copy workspace root files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+
+# Copy component package.json files
+COPY apps/api/package.json ./apps/api/
+COPY apps/dashboard/package.json ./apps/dashboard/
+
+RUN NODE_ENV=development pnpm install --frozen-lockfile
+
+FROM deps AS builder
+
+COPY apps/api ./apps/api
+
+# Generate Prisma client
+RUN cd apps/api && /opt/app-root/src/node_modules/.bin/prisma generate
+
+# Build the application
+RUN pnpm --filter @mcpspend/api run build
+
+FROM base AS runner
+
+ENV NODE_ENV=production
+
+# Copy node_modules and built application
+COPY --from=builder /opt/app-root/src/node_modules ./node_modules
+COPY --from=builder /opt/app-root/src/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder /opt/app-root/src/apps/api/dist ./apps/api/dist
+
+# Copy workspace files
+COPY package.json pnpm-workspace.yaml ./
+COPY apps/api/package.json ./apps/api/
+
+# Set working directory to api app
+WORKDIR /opt/app-root/src/apps/api
+
+# Set up OpenShift compatibility
+RUN chgrp -R 0 /opt/app-root && chmod -R g=u /opt/app-root
+
+# Use non-root user
+USER 1001
+
+# Worker doesn't expose ports, listens_on_port: false
+# No EXPOSE directive
+
+# Start background worker
+CMD ["node", "dist/worker.js"]
