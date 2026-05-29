@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: autopoc-mcpspend
+  labels:
+    app.kubernetes.io/name: mcpspend
+    app.kubernetes.io/managed-by: autopoc
