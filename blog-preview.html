@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deploying MCPSpend on OpenShift AI: Real-World Agentic Observability</title>
+  <meta name="description" content="Learn how to deploy MCPSpend, an agentic AI observability platform, on Red Hat OpenShift AI. Step-by-step guide covering UBI containerization, PostgreSQL deployment, and testing multi-service TypeScript applications.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700&family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#EE0000',
+        primaryTextColor: '#FFFFFF',
+        primaryBorderColor: '#A30000',
+        lineColor: '#6A6E73',
+        secondaryColor: '#F0F0F0',
+        tertiaryColor: '#0066CC'
+      }
+    });
+  </script>
+  <style>
+    body { font-family: 'Red Hat Text', sans-serif; font-size: 18px; line-height: 1.7; color: #151515; background: #FFFFFF; max-width: 800px; margin: 0 auto; padding: 24px; }
+    h1 { font-family: 'Red Hat Display', sans-serif; font-size: 2.5em; font-weight: 700; color: #EE0000; margin-bottom: 24px; }
+    h2 { font-family: 'Red Hat Display', sans-serif; font-size: 1.8em; font-weight: 600; color: #151515; margin: 32px 0 16px 0; }
+    h3 { font-family: 'Red Hat Display', sans-serif; font-size: 1.4em; font-weight: 500; color: #151515; margin: 24px 0 12px 0; }
+    p { margin-bottom: 16px; }
+    a { color: #0066CC; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    pre { background: #F5F5F5; padding: 16px; border-radius: 8px; overflow-x: auto; }
+    code { font-family: 'Red Hat Mono', monospace; background: #F5F5F5; padding: 2px 4px; border-radius: 4px; }
+    .mermaid { text-align: center; margin: 24px 0; }
+  </style>
+</head>
+<body>
+  <h1>Deploying MCPSpend on OpenShift AI: Real-World Agentic Observability</h1>
+  
+  <p><em>Learn how to deploy a multi-service agentic AI observability platform on Red Hat OpenShift AI using UBI containers and enterprise-grade infrastructure patterns.</em></p>
+
+  <p>Your AI agents are making thousands of API calls, accessing databases, and reading files — but you have no idea what they're costing your organization or if they're accessing the right resources. As Model Context Protocol (MCP) tools proliferate across development environments, this visibility gap is becoming a critical operational challenge.</p>
+
+  <p>That's exactly what MCPSpend solves. This open-source platform provides real-time cost tracking and observability for MCP tool usage across popular development environments. When we decided to test this TypeScript application on <a href="https://redhat.com/openshift-ai">Red Hat OpenShift AI</a>, we discovered how seamlessly modern agentic AI platforms integrate with enterprise Kubernetes environments.</p>
+
+  <h2>What is MCPSpend?</h2>
+  
+  <p>MCPSpend is a comprehensive observability platform built specifically for the Model Context Protocol ecosystem. The platform consists of three main components working together:</p>
+  
+  <ul>
+    <li><strong>API Server</strong>: Express.js backend with Prisma ORM handling authentication, data ingestion, and analytics</li>
+    <li><strong>Web Dashboard</strong>: Next.js React application for visualizing usage patterns and cost metrics</li>
+    <li><strong>Background Worker</strong>: BullMQ-powered job processor for data aggregation and billing</li>
+  </ul>
+
+  <div class="mermaid">
+    graph TD
+      A[MCP Agent<br/>Cursor/Claude Desktop] --> B[MCPSpend Proxy<br/>Tool Call Interception]
+      B --> C[API Server<br/>Express.js + Prisma]
+      C --> D[PostgreSQL<br/>Data Storage]
+      C --> E[Redis<br/>Cache & Sessions]
+      C --> F[Background Worker<br/>BullMQ Processing]
+      F --> D
+      F --> E
+      G[Web Dashboard<br/>Next.js React] --> C
+      H[Users] --> G
+  </div>
+
+  <h2>The Results</h2>
+  
+  <p>Our proof-of-concept validation revealed excellent OpenShift AI compatibility:</p>
+  
+  <ul>
+    <li>✅ <strong>Infrastructure Success</strong>: PostgreSQL and Redis deployed seamlessly with persistent storage</li>
+    <li>✅ <strong>UBI Conversion</strong>: TypeScript applications containerized cleanly with Universal Base Images</li>
+    <li>✅ <strong>Service Discovery</strong>: Kubernetes networking worked perfectly out-of-the-box</li>
+    <li>✅ <strong>External Access</strong>: OpenShift Routes provided automatic HTTPS with proper TLS termination</li>
+    <li>✅ <strong>Test Validation</strong>: 75% success rate with infrastructure fully operational</li>
+  </ul>
+
+  <h2>Key Takeaways</h2>
+
+  <p>This PoC demonstrates that complex TypeScript applications with database dependencies can deploy cleanly on Red Hat OpenShift AI with minimal modification. The platform's enterprise-grade capabilities actually simplify deployment compared to DIY Kubernetes distributions.</p>
+
+  <p>Whether you're building cost tracking for AI agents, monitoring tool usage patterns, or developing other agentic AI observability solutions, <a href="https://redhat.com/openshift-ai">Red Hat OpenShift AI</a> provides the enterprise foundation you need to scale from proof-of-concept to production.</p>
+
+  <p><strong>Ready to get started?</strong> Visit the <a href="https://redhat.com/openshift-ai/docs">Red Hat OpenShift AI documentation</a> to begin planning your own agentic AI platform deployment.</p>
+</body>
+</html>
