@@ -1,0 +1,40 @@
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS base
+
+USER 0
+RUN npm install -g pnpm@9.15.0
+
+FROM base AS deps
+WORKDIR /opt/app-root/src
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY apps/dashboard/package.json ./apps/dashboard/
+RUN NODE_ENV=development pnpm install --frozen-lockfile --filter @mcpspend/dashboard
+
+FROM deps AS builder
+WORKDIR /opt/app-root/src
+COPY apps/dashboard ./apps/dashboard
+ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_API_URL=http://mcpspend-api:4000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+RUN pnpm --filter @mcpspend/dashboard run build
+
+FROM registry.access.redhat.com/ubi9/nodejs-22
+USER 0
+
+WORKDIR /opt/app-root/src
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=builder /opt/app-root/src/apps/dashboard/.next/standalone ./
+COPY --from=builder /opt/app-root/src/apps/dashboard/.next/static ./apps/dashboard/.next/static
+RUN mkdir -p ./apps/dashboard/public
+COPY --from=builder /opt/app-root/src/apps/dashboard/public ./apps/dashboard/public/
+
+RUN chgrp -R 0 /opt/app-root && chmod -R g=u /opt/app-root
+
+USER 1001
+
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "apps/dashboard/server.js"]

@@ -1,0 +1,39 @@
+FROM registry.access.redhat.com/ubi9/nodejs-22 AS base
+
+USER 0
+RUN npm install -g pnpm@9.15.0
+
+FROM base AS deps
+WORKDIR /opt/app-root/src
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/dashboard/package.json ./apps/dashboard/
+RUN NODE_ENV=development pnpm install --frozen-lockfile
+
+FROM deps AS builder
+WORKDIR /opt/app-root/src
+COPY apps/api ./apps/api
+RUN cd apps/api && /opt/app-root/src/node_modules/.bin/prisma generate
+RUN pnpm --filter @mcpspend/api run build
+
+FROM registry.access.redhat.com/ubi9/nodejs-22
+USER 0
+
+WORKDIR /opt/app-root/src
+
+COPY --from=builder /opt/app-root/src/node_modules ./node_modules
+COPY --from=builder /opt/app-root/src/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder /opt/app-root/src/apps/api/dist ./apps/api/dist
+COPY --from=builder /opt/app-root/src/apps/api/prisma ./apps/api/prisma
+COPY package.json pnpm-workspace.yaml ./
+COPY apps/api/package.json ./apps/api/
+
+ENV NODE_ENV=production
+
+RUN chgrp -R 0 /opt/app-root && chmod -R g=u /opt/app-root
+
+USER 1001
+
+WORKDIR /opt/app-root/src/apps/api
+EXPOSE 4000
+CMD ["sh", "-c", "/opt/app-root/src/node_modules/.bin/prisma migrate deploy && node dist/index.js"]
