@@ -12,6 +12,8 @@ RUN NODE_ENV=development pnpm install --frozen-lockfile --filter @mcpspend/dashb
 FROM deps AS builder
 WORKDIR /opt/app-root/src
 COPY apps/dashboard ./apps/dashboard
+# Remove blog content to avoid gray-matter/js-yaml compatibility issue during static generation
+RUN rm -rf apps/dashboard/content/blog/*.md || true
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_URL=http://mcpspend-api:4000
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
