@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: poc-mcpspend
+  labels:
+    app.kubernetes.io/part-of: mcpspend
+    poc.autopoc.dev/project: mcpspend
