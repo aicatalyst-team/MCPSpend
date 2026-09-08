@@ -1,4 +1,10 @@
-# MCPSpend
+> [!WARNING]
+> **This repository is archived.**
+>
+> Archived on 2026-09-08 by the AI Catalyst Platform Team.
+> It is read-only and no longer maintained.
+
+---# MCPSpend
 
 > **Know what your AI agents really cost.** Real-time cost tracking for every MCP tool call across Cursor, Claude Desktop, Windsurf, and VS Code.
 
